@@ -1,0 +1,68 @@
+[tool.poetry]
+name = "genome-dl"
+version = "0.1.0"
+description = "Download genomes from NCBI Datasets"
+authors = ["Robert A. Petit III <robbie.petit@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/rpetit3/genome-dl"
+repository = "https://github.com/rpetit3/genome-dl"
+keywords = ["bioinformatics", "genome", "download", "NCBI", "assembly"]
+
+[tool.poetry.scripts]
+genome-dl = "genome_dl.cli.download:main"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+requests = "^2.31.0"
+rich-click = "^1.6.1"
+rich = ">=13.3.1"
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.15"
+pytest = ">=9.0.3,<10.0.0"
+pytest-cov = "^4.1.0"
+pytest-mock = "^3.12.0"
+responses = "^0.24.0"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["genome_dl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["genome_dl"]
+branch = true
+omit = [
+    "genome_dl/__init__.py",
+]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

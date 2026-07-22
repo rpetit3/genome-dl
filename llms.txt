@@ -1,0 +1,134 @@
+# genome-dl
+
+> Download genomes from NCBI Datasets
+
+- **Version**: 0.1.0
+- **Repository**: https://github.com/rpetit3/genome-dl
+- **License**: MIT
+- **Python**: >=3.10,<3.14
+- **Modules**: 7 | **Functions**: 25 | **Classes**: 9
+
+## Architecture
+
+genome-dl uses a hybrid design: the NCBI Datasets REST API does the
+resolution and the NCBI FTP site delivers the bytes.
+
+1. **CLI Layer** (`genome_dl/cli/download.py`): rich-click command-line
+   interface that parses arguments, sets up logging, resolves targets, runs
+   downloads concurrently, writes the metadata TSV, and maps exceptions to
+   exit codes.
+
+2. **Provider Layer** (`genome_dl/providers/`): metadata queries and file
+   downloads.
+   - `datasets.py` — NCBI Datasets v2 REST: accession resolution/versioning,
+     suppression detection, taxonomy verification, species listing
+   - `ftp.py` — direct FTP downloads to `{accession}.{ext}` with md5 verification
+
+3. **Utilities Layer** (`genome_dl/utils.py`): MD5 checksums, accession
+   parsing/validation, accession-file reading, and TSV output.
+
+### Data Flow
+
+```
+CLI (accession / accessions file / species)
+ → parse_accession() → validate accession format
+ → resolve_accessions() | verify_taxon() + list_taxon_assemblies()
+ → select_for_input() → latest / superseded / suppressed / not-found
+ → download_assembly() → FTP download + md5 verify → {accession}.{ext}
+ → write_tsv() → {prefix}-metadata.tsv
+```
+
+## Module Index
+
+### genome_dl.__init__
+- **Path**: `genome_dl/__init__.py`
+- **Description**: Top-level package for genome-dl.
+
+### genome_dl.cli.download
+- **Path**: `genome_dl/cli/download.py`
+- **Functions**: `genomedl`, `_parse_formats`, `_parse_levels`, `_resolve_targets`, `_run_download`, `main`
+
+### genome_dl.constants
+- **Path**: `genome_dl/constants.py`
+- **Description**: Constants used in the genome_dl package.
+
+### genome_dl.exceptions
+- **Path**: `genome_dl/exceptions.py`
+- **Description**: Custom exceptions for genome-dl.
+- **Classes**: `GenomeDLError`, `ValidationError`, `ApiError`, `TaxonError`, `EmptyResultError`, `DownloadError`, `AccessionNotFoundError`, `PartialDownloadError`
+
+### genome_dl.providers.datasets
+- **Path**: `genome_dl/providers/datasets.py`
+- **Description**: NCBI Datasets v2 REST API provider.
+- **Functions**: `_assembly_from_report`, `metadata_row`, `make_session`, `_base_of`, `_request`, `resolve_accessions`, `select_for_input`, `verify_taxon`, `list_taxon_assemblies`
+- **Classes**: `Assembly`
+
+### genome_dl.providers.ftp
+- **Path**: `genome_dl/providers/ftp.py`
+- **Description**: Direct FTP download provider for NCBI genome assemblies.
+- **Functions**: `_sanitize`, `assembly_dir_url`, `resolve_dir`, `fetch_md5`, `_download_file`, `download_assembly`
+
+### genome_dl.utils
+- **Path**: `genome_dl/utils.py`
+- **Description**: Utility functions for genome-dl.
+- **Functions**: `md5sum`, `parse_accession`, `read_accessions`, `write_tsv`
+
+## CLI Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--accession` |  | A single NCBI assembly accession to download (e.g. GCF_000005845.2). |
+| `--accessions` |  | Path to a file of accessions, one per line. |
+| `--species` |  | A species (or any taxon) name to download assemblies for. |
+| `--section` | refseq | Assembly source to query for --species. |
+| `--assembly-level` | all | Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all). |
+| `--formats` | fasta | Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all). |
+| `--limit` | DEFAULT_LIMIT | Max assemblies to download for --species (0 = no limit). |
+| `--seed` |  | Random seed for reproducible --species subsetting. |
+| `--max-attempts` (`-m`) | DEFAULT_MAX_ATTEMPTS | Maximum number of download attempts. |
+| `--sleep` (`-s`) | DEFAULT_SLEEP | Seconds to sleep between download retries. |
+| `--force` (`-F`) | off | Overwrite existing files. |
+| `--ignore` (`-I`) | off | Skip MD5 validation of downloaded files. |
+| `--api-key` | lambda: os.environ.get('NCBI_API_KEY') | NCBI API key (defaults to the NCBI_API_KEY environment variable). |
+| `--outdir` (`-o`) | ./ | Directory to write downloads to. |
+| `--prefix` | DEFAULT_PREFIX | Prefix for the metadata TSV file. |
+| `--cpus` | DEFAULT_CPUS | Number of concurrent downloads. |
+| `--dry-run` | off | List assemblies without downloading. |
+| `--progress` | off | Show per-file download progress. |
+| `--silent` | off | Only critical errors will be printed. |
+| `--verbose` (`-v`) | off | Print debug related text. |
+
+## Exception Hierarchy
+
+All exceptions inherit from `GenomeDLError`:
+
+- **GenomeDLError**: Base exception for genome-dl.
+- **ValidationError**: Invalid accession or input.
+- **ApiError**: Error from the NCBI Datasets REST API. (attrs: message, status_code)
+- **TaxonError**: The requested taxon is not a recognized NCBI Taxonomy name.
+- **EmptyResultError**: A valid taxon returned no assemblies for the requested filters.
+- **DownloadError**: Error while downloading assembly files. (attrs: message, accession)
+- **AccessionNotFoundError**: All requested accessions failed to resolve or download. (attrs: message, failed)
+- **PartialDownloadError**: Some assemblies were downloaded but others failed. (attrs: message, failed, successful)
+
+Exit codes: `1` = validation/provider/download error, `2` = empty/not found/missing, `3` = partial download
+
+## External Tool Dependencies
+
+None.
+
+## Development
+
+```bash
+poetry install          # Install dependencies
+just test-cov           # Unit tests with 70% coverage minimum
+just test-integration   # Integration tests (real API calls)
+just fmt                # Format with ruff
+just check              # Format + lint check
+just build              # Build package
+```
+
+## Machine-Readable Metadata
+
+See `catalog.json` for structured project metadata including detailed function signatures,
+CLI option definitions, dependency versions, and the complete exception hierarchy.

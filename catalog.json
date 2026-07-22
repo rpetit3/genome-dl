@@ -1,0 +1,1204 @@
+{
+  "name": "genome-dl",
+  "version": "0.1.0",
+  "description": "Download genomes from NCBI Datasets",
+  "repository": "https://github.com/rpetit3/genome-dl",
+  "homepage": "https://github.com/rpetit3/genome-dl",
+  "license": "MIT",
+  "python_requires": ">=3.10,<3.14",
+  "generated_at": "2026-07-22T18:28:24.491860+00:00",
+  "modules": {
+    "genome_dl.__init__": {
+      "path": "genome_dl/__init__.py",
+      "module": "genome_dl.__init__",
+      "description": "Top-level package for genome-dl.",
+      "functions": {},
+      "classes": {},
+      "constants": {}
+    },
+    "genome_dl.cli.download": {
+      "path": "genome_dl/cli/download.py",
+      "module": "genome_dl.cli.download",
+      "description": "",
+      "functions": {
+        "genomedl": {
+          "name": "genomedl",
+          "description": "Download genomes from NCBI Datasets.",
+          "args": [
+            {
+              "name": "accession",
+              "description": "A single NCBI assembly accession to download (e.g. GCF_000005845.2)."
+            },
+            {
+              "name": "accessions",
+              "description": "Path to a file of accessions, one per line."
+            },
+            {
+              "name": "species",
+              "description": "A species (or any taxon) name to download assemblies for."
+            },
+            {
+              "name": "section",
+              "description": "Assembly source to query for --species.",
+              "default": "refseq"
+            },
+            {
+              "name": "assembly_level",
+              "description": "Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all).",
+              "default": "all"
+            },
+            {
+              "name": "formats",
+              "description": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all).",
+              "default": "fasta"
+            },
+            {
+              "name": "limit",
+              "description": "Max assemblies to download for --species (0 = no limit).",
+              "default": "DEFAULT_LIMIT"
+            },
+            {
+              "name": "seed",
+              "description": "Random seed for reproducible --species subsetting."
+            },
+            {
+              "name": "max_attempts",
+              "description": "Maximum number of download attempts.",
+              "default": "DEFAULT_MAX_ATTEMPTS"
+            },
+            {
+              "name": "sleep",
+              "description": "Seconds to sleep between download retries.",
+              "default": "DEFAULT_SLEEP"
+            },
+            {
+              "name": "force",
+              "description": "Overwrite existing files.",
+              "default": "False"
+            },
+            {
+              "name": "ignore_md5",
+              "description": "Skip MD5 validation of downloaded files.",
+              "default": "False"
+            },
+            {
+              "name": "api_key",
+              "description": "NCBI API key (defaults to the NCBI_API_KEY environment variable).",
+              "default": "lambda: os.environ.get('NCBI_API_KEY')"
+            },
+            {
+              "name": "outdir",
+              "description": "Directory to write downloads to.",
+              "default": "./"
+            },
+            {
+              "name": "prefix",
+              "description": "Prefix for the metadata TSV file.",
+              "default": "DEFAULT_PREFIX"
+            },
+            {
+              "name": "cpus",
+              "description": "Number of concurrent downloads.",
+              "default": "DEFAULT_CPUS"
+            },
+            {
+              "name": "dry_run",
+              "description": "List assemblies without downloading.",
+              "default": "False"
+            },
+            {
+              "name": "progress",
+              "description": "Show per-file download progress.",
+              "default": "False"
+            },
+            {
+              "name": "silent",
+              "description": "Only critical errors will be printed.",
+              "default": "False"
+            },
+            {
+              "name": "verbose",
+              "description": "Print debug related text.",
+              "default": "False"
+            }
+          ],
+          "returns": null,
+          "lineno": 207
+        },
+        "_parse_formats": {
+          "name": "_parse_formats",
+          "description": "Parse and validate the --formats option into a list of keys.",
+          "args": [
+            {
+              "name": "formats",
+              "annotation": "str"
+            }
+          ],
+          "returns": "list[str]",
+          "lineno": 293
+        },
+        "_parse_levels": {
+          "name": "_parse_levels",
+          "description": "Parse and validate the --assembly-level option into a list of keys.",
+          "args": [
+            {
+              "name": "assembly_level",
+              "annotation": "str"
+            }
+          ],
+          "returns": "list[str]",
+          "lineno": 306
+        },
+        "_resolve_targets": {
+          "name": "_resolve_targets",
+          "description": "Resolve accession input(s) into target assemblies, recording failures.",
+          "args": [
+            {
+              "name": "session"
+            },
+            {
+              "name": "accession"
+            },
+            {
+              "name": "accessions"
+            },
+            {
+              "name": "failures"
+            }
+          ],
+          "returns": null,
+          "lineno": 320
+        },
+        "_run_download": {
+          "name": "_run_download",
+          "description": "Core workflow. Raises GenomeDLError subclasses handled by the CLI.",
+          "args": [
+            {
+              "name": "accession",
+              "description": "A single NCBI assembly accession to download (e.g. GCF_000005845.2)."
+            },
+            {
+              "name": "accessions",
+              "description": "Path to a file of accessions, one per line."
+            },
+            {
+              "name": "species",
+              "description": "A species (or any taxon) name to download assemblies for."
+            },
+            {
+              "name": "section",
+              "description": "Assembly source to query for --species.",
+              "default": "refseq"
+            },
+            {
+              "name": "assembly_level",
+              "description": "Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all).",
+              "default": "all"
+            },
+            {
+              "name": "formats",
+              "description": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all).",
+              "default": "fasta"
+            },
+            {
+              "name": "limit",
+              "description": "Max assemblies to download for --species (0 = no limit).",
+              "default": "DEFAULT_LIMIT"
+            },
+            {
+              "name": "seed",
+              "description": "Random seed for reproducible --species subsetting."
+            },
+            {
+              "name": "max_attempts",
+              "description": "Maximum number of download attempts.",
+              "default": "DEFAULT_MAX_ATTEMPTS"
+            },
+            {
+              "name": "sleep",
+              "description": "Seconds to sleep between download retries.",
+              "default": "DEFAULT_SLEEP"
+            },
+            {
+              "name": "force",
+              "description": "Overwrite existing files.",
+              "default": "False"
+            },
+            {
+              "name": "ignore_md5",
+              "description": "Skip MD5 validation of downloaded files.",
+              "default": "False"
+            },
+            {
+              "name": "api_key",
+              "description": "NCBI API key (defaults to the NCBI_API_KEY environment variable).",
+              "default": "lambda: os.environ.get('NCBI_API_KEY')"
+            },
+            {
+              "name": "outdir",
+              "description": "Directory to write downloads to.",
+              "default": "./"
+            },
+            {
+              "name": "prefix",
+              "description": "Prefix for the metadata TSV file.",
+              "default": "DEFAULT_PREFIX"
+            },
+            {
+              "name": "cpus",
+              "description": "Number of concurrent downloads.",
+              "default": "DEFAULT_CPUS"
+            },
+            {
+              "name": "dry_run",
+              "description": "List assemblies without downloading.",
+              "default": "False"
+            },
+            {
+              "name": "show_progress"
+            }
+          ],
+          "returns": null,
+          "lineno": 359
+        },
+        "main": {
+          "name": "main",
+          "description": "",
+          "args": [],
+          "returns": null,
+          "lineno": 494
+        }
+      },
+      "classes": {},
+      "constants": {}
+    },
+    "genome_dl.constants": {
+      "path": "genome_dl/constants.py",
+      "module": "genome_dl.constants",
+      "description": "Constants used in the genome_dl package.",
+      "functions": {},
+      "classes": {},
+      "constants": {
+        "DATASETS_API": "https://api.ncbi.nlm.nih.gov/datasets/v2",
+        "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
+        "DEFAULT_LIMIT": 10,
+        "DEFAULT_CPUS": 3,
+        "DEFAULT_MAX_ATTEMPTS": 3,
+        "DEFAULT_SLEEP": 10,
+        "DEFAULT_PREFIX": "genome-dl",
+        "METADATA_SUFFIX": "-metadata.tsv",
+        "FORMATS": {
+          "fasta": [
+            "_genomic.fna.gz",
+            "fna.gz"
+          ],
+          "genbank": [
+            "_genomic.gbff.gz",
+            "gbff.gz"
+          ],
+          "gff": [
+            "_genomic.gff.gz",
+            "gff.gz"
+          ],
+          "gtf": [
+            "_genomic.gtf.gz",
+            "gtf.gz"
+          ],
+          "protein": [
+            "_protein.faa.gz",
+            "faa.gz"
+          ],
+          "cds": [
+            "_cds_from_genomic.fna.gz",
+            "cds.fna.gz"
+          ],
+          "rna": [
+            "_rna_from_genomic.fna.gz",
+            "rna.fna.gz"
+          ],
+          "feature-table": [
+            "_feature_table.txt.gz",
+            "feature_table.txt.gz"
+          ],
+          "assembly-report": [
+            "_assembly_report.txt",
+            "assembly_report.txt"
+          ],
+          "assembly-stats": [
+            "_assembly_stats.txt",
+            "assembly_stats.txt"
+          ]
+        },
+        "ASSEMBLY_LEVELS": {
+          "complete": "complete_genome",
+          "chromosome": "chromosome",
+          "scaffold": "scaffold",
+          "contig": "contig"
+        },
+        "METADATA_COLUMNS": [
+          "accession",
+          "source_database",
+          "assembly_name",
+          "assembly_level",
+          "assembly_status",
+          "organism_name",
+          "tax_id",
+          "strain",
+          "biosample",
+          "bioproject",
+          "submitter",
+          "release_date",
+          "refseq_category",
+          "paired_accession",
+          "total_sequence_length",
+          "number_of_contigs",
+          "contig_n50",
+          "gc_percent",
+          "files"
+        ]
+      }
+    },
+    "genome_dl.exceptions": {
+      "path": "genome_dl/exceptions.py",
+      "module": "genome_dl.exceptions",
+      "description": "Custom exceptions for genome-dl.",
+      "functions": {},
+      "classes": {
+        "GenomeDLError": {
+          "name": "GenomeDLError",
+          "description": "Base exception for genome-dl.",
+          "bases": [
+            "Exception"
+          ],
+          "init_args": [],
+          "lineno": 4
+        },
+        "ValidationError": {
+          "name": "ValidationError",
+          "description": "Invalid accession or input.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [],
+          "lineno": 10
+        },
+        "ApiError": {
+          "name": "ApiError",
+          "description": "Error from the NCBI Datasets REST API.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [
+            {
+              "name": "message",
+              "annotation": "str"
+            },
+            {
+              "name": "status_code",
+              "annotation": "int",
+              "default": "None"
+            }
+          ],
+          "lineno": 16
+        },
+        "TaxonError": {
+          "name": "TaxonError",
+          "description": "The requested taxon is not a recognized NCBI Taxonomy name.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [],
+          "lineno": 24
+        },
+        "EmptyResultError": {
+          "name": "EmptyResultError",
+          "description": "A valid taxon returned no assemblies for the requested filters.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [],
+          "lineno": 30
+        },
+        "DownloadError": {
+          "name": "DownloadError",
+          "description": "Error while downloading assembly files.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [
+            {
+              "name": "message",
+              "annotation": "str"
+            },
+            {
+              "name": "accession",
+              "annotation": "str",
+              "default": "None"
+            }
+          ],
+          "lineno": 36
+        },
+        "AccessionNotFoundError": {
+          "name": "AccessionNotFoundError",
+          "description": "All requested accessions failed to resolve or download.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [
+            {
+              "name": "message",
+              "annotation": "str"
+            },
+            {
+              "name": "failed",
+              "annotation": "list[str]",
+              "default": "None"
+            }
+          ],
+          "lineno": 44
+        },
+        "PartialDownloadError": {
+          "name": "PartialDownloadError",
+          "description": "Some assemblies were downloaded but others failed.",
+          "bases": [
+            "GenomeDLError"
+          ],
+          "init_args": [
+            {
+              "name": "message",
+              "annotation": "str"
+            },
+            {
+              "name": "failed",
+              "annotation": "list[str]",
+              "default": "None"
+            },
+            {
+              "name": "successful",
+              "annotation": "list[str]",
+              "default": "None"
+            }
+          ],
+          "lineno": 52
+        }
+      },
+      "constants": {}
+    },
+    "genome_dl.providers.datasets": {
+      "path": "genome_dl/providers/datasets.py",
+      "module": "genome_dl.providers.datasets",
+      "description": "NCBI Datasets v2 REST API provider.\n\nHandles all metadata and resolution work: accession versioning, suppression\ndetection, taxonomy verification, and species (taxon) assembly listing. No\nsequence bytes are downloaded here -- that is the FTP provider's job.",
+      "functions": {
+        "_assembly_from_report": {
+          "name": "_assembly_from_report",
+          "description": "Build an Assembly from a Datasets dataset_report entry.",
+          "args": [
+            {
+              "name": "report",
+              "annotation": "dict"
+            }
+          ],
+          "returns": "Assembly",
+          "lineno": 35
+        },
+        "metadata_row": {
+          "name": "metadata_row",
+          "description": "Flatten an assembly's report into METADATA_COLUMNS keys for the TSV.",
+          "args": [
+            {
+              "name": "asm",
+              "annotation": "Assembly"
+            },
+            {
+              "name": "files",
+              "annotation": "list[Path]"
+            }
+          ],
+          "returns": "dict",
+          "lineno": 50
+        },
+        "make_session": {
+          "name": "make_session",
+          "description": "Create a requests session with retry/backoff and optional API key.",
+          "args": [
+            {
+              "name": "max_attempts",
+              "annotation": "int"
+            },
+            {
+              "name": "api_key",
+              "annotation": "Optional[str]"
+            }
+          ],
+          "returns": "requests.Session",
+          "lineno": 81
+        },
+        "_base_of": {
+          "name": "_base_of",
+          "description": "Return the accession without its version suffix.",
+          "args": [
+            {
+              "name": "accession",
+              "annotation": "str"
+            }
+          ],
+          "returns": "str",
+          "lineno": 98
+        },
+        "_request": {
+          "name": "_request",
+          "description": "Perform an HTTP request, converting failures into ApiError.",
+          "args": [
+            {
+              "name": "session"
+            },
+            {
+              "name": "method"
+            },
+            {
+              "name": "url"
+            },
+            {
+              "name": "context"
+            }
+          ],
+          "returns": null,
+          "lineno": 103
+        },
+        "resolve_accessions": {
+          "name": "resolve_accessions",
+          "description": "Resolve accession bases to every known version and its status.\n\nUses a single (paginated) POST to the dataset_report endpoint with the\n``all_assemblies`` filter so that current, previous (replaced), and\nsuppressed versions are all returned. Bases with no assembly are simply\nabsent from the result.\n\nReturns:\n    Mapping of base accession -> {version_int: Assembly}.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "bases",
+              "annotation": "list[str]"
+            }
+          ],
+          "returns": "dict[str, dict[int, Assembly]]",
+          "lineno": 117
+        },
+        "select_for_input": {
+          "name": "select_for_input",
+          "description": "Decide which assembly to download for one requested accession.\n\nReturns ``(assembly, action)`` where action is one of\n``selected``, ``superseded``, ``suppressed``, ``notfound``.",
+          "args": [
+            {
+              "name": "base",
+              "annotation": "str"
+            },
+            {
+              "name": "version",
+              "annotation": "Optional[int]"
+            },
+            {
+              "name": "versions",
+              "annotation": "dict[int, Assembly]"
+            }
+          ],
+          "returns": "tuple[Optional[Assembly], str]",
+          "lineno": 160
+        },
+        "verify_taxon": {
+          "name": "verify_taxon",
+          "description": "Verify a taxon name against NCBI Taxonomy.\n\nReturns a dict with ``tax_id``, ``rank``, and ``name`` on success.\n\nRaises:\n    TaxonError: If the name is not a recognized NCBI Taxonomy name.\n    ApiError: If the API request fails.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "name",
+              "annotation": "str"
+            }
+          ],
+          "returns": "dict",
+          "lineno": 193
+        },
+        "list_taxon_assemblies": {
+          "name": "list_taxon_assemblies",
+          "description": "List all assemblies for a taxon, applying source and level filters.\n\nRaises:\n    EmptyResultError: If the taxon has no assemblies for the filters.\n    ApiError: If the API request fails.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "name",
+              "annotation": "str"
+            },
+            {
+              "name": "source",
+              "annotation": "str"
+            },
+            {
+              "name": "levels",
+              "annotation": "list[str]"
+            }
+          ],
+          "returns": "list[Assembly]",
+          "lineno": 219
+        }
+      },
+      "classes": {
+        "Assembly": {
+          "name": "Assembly",
+          "description": "A single NCBI genome assembly and its source metadata.",
+          "bases": [],
+          "init_args": [],
+          "lineno": 23
+        }
+      },
+      "constants": {}
+    },
+    "genome_dl.providers.ftp": {
+      "path": "genome_dl/providers/ftp.py",
+      "module": "genome_dl.providers.ftp",
+      "description": "Direct FTP download provider for NCBI genome assemblies.\n\nAssemblies are fetched directly from ``ftp.ncbi.nlm.nih.gov/genomes`` where the\nfiles are already gzipped and md5-verifiable. Output files are written flat as\n``{accession}.{ext}``.",
+      "functions": {
+        "_sanitize": {
+          "name": "_sanitize",
+          "description": "Sanitize an assembly name the way NCBI does for FTP directory names.",
+          "args": [
+            {
+              "name": "assembly_name",
+              "annotation": "str"
+            }
+          ],
+          "returns": "str",
+          "lineno": 24
+        },
+        "assembly_dir_url": {
+          "name": "assembly_dir_url",
+          "description": "Construct the FTP directory URL for an assembly.\n\ne.g. GCF_000005845.2 + ASM584v2 ->\n{base_url}/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/",
+          "args": [
+            {
+              "name": "base_url",
+              "annotation": "str"
+            },
+            {
+              "name": "accession",
+              "annotation": "str"
+            },
+            {
+              "name": "assembly_name",
+              "annotation": "str"
+            }
+          ],
+          "returns": "str",
+          "lineno": 29
+        },
+        "resolve_dir": {
+          "name": "resolve_dir",
+          "description": "Return the real FTP directory URL for an assembly.\n\nBuilds the candidate path from the (sanitized) assembly name and confirms\nit by fetching ``md5checksums.txt``. Falls back to listing the parent digit\ndirectory and matching ``{accession}_*`` if the candidate 404s.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "base_url",
+              "annotation": "str"
+            },
+            {
+              "name": "accession",
+              "annotation": "str"
+            },
+            {
+              "name": "assembly_name",
+              "annotation": "str"
+            }
+          ],
+          "returns": "str",
+          "lineno": 42
+        },
+        "fetch_md5": {
+          "name": "fetch_md5",
+          "description": "Fetch and parse ``md5checksums.txt`` into {filename: md5}.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "dir_url",
+              "annotation": "str"
+            }
+          ],
+          "returns": "dict[str, str]",
+          "lineno": 67
+        },
+        "_download_file": {
+          "name": "_download_file",
+          "description": "Download one file with retries, md5 verification, and atomic rename.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "url",
+              "annotation": "str"
+            },
+            {
+              "name": "target",
+              "annotation": "Path"
+            },
+            {
+              "name": "expected_md5",
+              "annotation": "Optional[str]"
+            },
+            {
+              "name": "max_attempts",
+              "annotation": "int"
+            },
+            {
+              "name": "sleep",
+              "annotation": "int"
+            },
+            {
+              "name": "progress"
+            },
+            {
+              "name": "label",
+              "annotation": "str"
+            }
+          ],
+          "returns": "None",
+          "lineno": 82
+        },
+        "download_assembly": {
+          "name": "download_assembly",
+          "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns the list of written file paths. Formats not available for the\nassembly are logged and skipped. Raises DownloadError on hard failure.",
+          "args": [
+            {
+              "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "asm",
+              "annotation": "Assembly"
+            },
+            {
+              "name": "formats",
+              "annotation": "list[str]"
+            },
+            {
+              "name": "outdir",
+              "annotation": "Path"
+            },
+            {
+              "name": "base_url",
+              "annotation": "str"
+            },
+            {
+              "name": "force",
+              "annotation": "bool"
+            },
+            {
+              "name": "ignore_md5",
+              "annotation": "bool"
+            },
+            {
+              "name": "max_attempts",
+              "annotation": "int"
+            },
+            {
+              "name": "sleep",
+              "annotation": "int"
+            },
+            {
+              "name": "progress",
+              "default": "None"
+            }
+          ],
+          "returns": "list[Path]",
+          "lineno": 134
+        }
+      },
+      "classes": {},
+      "constants": {}
+    },
+    "genome_dl.utils": {
+      "path": "genome_dl/utils.py",
+      "module": "genome_dl.utils",
+      "description": "Utility functions for genome-dl.",
+      "functions": {
+        "md5sum": {
+          "name": "md5sum",
+          "description": "Calculate the MD5 checksum of a file.\n\nSource: https://stackoverflow.com/a/3431838/5299417\n\nArgs:\n    path (PathLike): Input file to calculate the MD5 checksum for.\n\nReturns:\n    str: Calculated MD5 checksum, or None if the file does not exist.",
+          "args": [
+            {
+              "name": "path",
+              "annotation": "PathLike",
+              "description": "Input file to calculate the MD5 checksum for."
+            }
+          ],
+          "returns": "Optional[str]",
+          "lineno": 16
+        },
+        "parse_accession": {
+          "name": "parse_accession",
+          "description": "Parse and validate an NCBI assembly accession.\n\nAccepts RefSeq (GCF) or GenBank (GCA) accessions, with or without a version\nsuffix (e.g. ``GCF_000005845`` or ``GCF_000005845.2``).\n\nArgs:\n    token (str): The accession to parse.\n\nReturns:\n    tuple: ``(base, version)`` where ``base`` is the accession without a\n    version (e.g. ``GCF_000005845``) and ``version`` is the integer version\n    or ``None`` when unversioned.\n\nRaises:\n    ValidationError: If the token is not a valid accession.",
+          "args": [
+            {
+              "name": "token",
+              "annotation": "str",
+              "description": "The accession to parse."
+            }
+          ],
+          "returns": "tuple[str, Optional[int]]",
+          "lineno": 41
+        },
+        "read_accessions": {
+          "name": "read_accessions",
+          "description": "Read accessions from a file, one per line.\n\nBlank lines and lines beginning with ``#`` are ignored.\n\nArgs:\n    path (PathLike): Path to the accession list file.\n\nReturns:\n    list[str]: The stripped, non-comment, non-blank lines.",
+          "args": [
+            {
+              "name": "path",
+              "annotation": "PathLike",
+              "description": "Path to the accession list file."
+            }
+          ],
+          "returns": "list[str]",
+          "lineno": 68
+        },
+        "write_tsv": {
+          "name": "write_tsv",
+          "description": "Write a list of dictionaries to a TSV file with a fixed column order.\n\nMissing keys in any row are written as empty strings. Extra keys not in\n``columns`` are ignored.\n\nArgs:\n    rows (list[dict]): The rows to write.\n    path (str): Output TSV path.\n    columns (list[str]): Ordered column names (the header).",
+          "args": [
+            {
+              "name": "rows",
+              "annotation": "list[dict]",
+              "description": "The rows to write."
+            },
+            {
+              "name": "path",
+              "annotation": "str",
+              "description": "Output TSV path."
+            },
+            {
+              "name": "columns",
+              "annotation": "list[str]",
+              "description": "Ordered column names (the header)."
+            }
+          ],
+          "returns": "None",
+          "lineno": 89
+        }
+      },
+      "classes": {},
+      "constants": {}
+    }
+  },
+  "cli_options": [
+    {
+      "name": "--accession",
+      "help": "A single NCBI assembly accession to download (e.g. GCF_000005845.2)."
+    },
+    {
+      "name": "--accessions",
+      "help": "Path to a file of accessions, one per line."
+    },
+    {
+      "name": "--species",
+      "help": "A species (or any taxon) name to download assemblies for."
+    },
+    {
+      "name": "--section",
+      "default": "refseq",
+      "type": "click.Choice(['refseq', 'genbank', 'all'], case_sensitive=False)",
+      "help": "Assembly source to query for --species."
+    },
+    {
+      "name": "--assembly-level",
+      "default": "all",
+      "help": "Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all)."
+    },
+    {
+      "name": "--formats",
+      "default": "fasta",
+      "help": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all)."
+    },
+    {
+      "name": "--limit",
+      "default": "DEFAULT_LIMIT",
+      "type": "int",
+      "help": "Max assemblies to download for --species (0 = no limit)."
+    },
+    {
+      "name": "--seed",
+      "default": null,
+      "type": "int",
+      "help": "Random seed for reproducible --species subsetting."
+    },
+    {
+      "name": "--max-attempts",
+      "short": "-m",
+      "default": "DEFAULT_MAX_ATTEMPTS",
+      "type": "int",
+      "help": "Maximum number of download attempts."
+    },
+    {
+      "name": "--sleep",
+      "short": "-s",
+      "default": "DEFAULT_SLEEP",
+      "type": "int",
+      "help": "Seconds to sleep between download retries."
+    },
+    {
+      "name": "--force",
+      "short": "-F",
+      "is_flag": true,
+      "help": "Overwrite existing files."
+    },
+    {
+      "name": "--ignore",
+      "short": "-I",
+      "is_flag": true,
+      "help": "Skip MD5 validation of downloaded files."
+    },
+    {
+      "name": "--api-key",
+      "default": "lambda: os.environ.get('NCBI_API_KEY')",
+      "help": "NCBI API key (defaults to the NCBI_API_KEY environment variable)."
+    },
+    {
+      "name": "--outdir",
+      "short": "-o",
+      "default": "./",
+      "help": "Directory to write downloads to."
+    },
+    {
+      "name": "--prefix",
+      "default": "DEFAULT_PREFIX",
+      "help": "Prefix for the metadata TSV file."
+    },
+    {
+      "name": "--cpus",
+      "default": "DEFAULT_CPUS",
+      "type": "int",
+      "help": "Number of concurrent downloads."
+    },
+    {
+      "name": "--dry-run",
+      "is_flag": true,
+      "help": "List assemblies without downloading."
+    },
+    {
+      "name": "--progress",
+      "is_flag": true,
+      "help": "Show per-file download progress."
+    },
+    {
+      "name": "--silent",
+      "is_flag": true,
+      "help": "Only critical errors will be printed."
+    },
+    {
+      "name": "--verbose",
+      "short": "-v",
+      "is_flag": true,
+      "help": "Print debug related text."
+    }
+  ],
+  "dependencies": {
+    "runtime": {
+      "requests": "^2.31.0",
+      "rich-click": "^1.6.1",
+      "rich": ">=13.3.1"
+    },
+    "dev": {
+      "ruff": ">=0.15",
+      "pytest": ">=9.0.3,<10.0.0",
+      "pytest-cov": "^4.1.0",
+      "pytest-mock": "^3.12.0",
+      "responses": "^0.24.0"
+    }
+  },
+  "external_tools": [],
+  "exceptions": {
+    "GenomeDLError": {
+      "description": "Base exception for genome-dl.",
+      "bases": [
+        "Exception"
+      ],
+      "init_args": []
+    },
+    "ValidationError": {
+      "description": "Invalid accession or input.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": []
+    },
+    "ApiError": {
+      "description": "Error from the NCBI Datasets REST API.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": [
+        {
+          "name": "message",
+          "annotation": "str"
+        },
+        {
+          "name": "status_code",
+          "annotation": "int",
+          "default": "None"
+        }
+      ]
+    },
+    "TaxonError": {
+      "description": "The requested taxon is not a recognized NCBI Taxonomy name.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": []
+    },
+    "EmptyResultError": {
+      "description": "A valid taxon returned no assemblies for the requested filters.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": []
+    },
+    "DownloadError": {
+      "description": "Error while downloading assembly files.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": [
+        {
+          "name": "message",
+          "annotation": "str"
+        },
+        {
+          "name": "accession",
+          "annotation": "str",
+          "default": "None"
+        }
+      ]
+    },
+    "AccessionNotFoundError": {
+      "description": "All requested accessions failed to resolve or download.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": [
+        {
+          "name": "message",
+          "annotation": "str"
+        },
+        {
+          "name": "failed",
+          "annotation": "list[str]",
+          "default": "None"
+        }
+      ]
+    },
+    "PartialDownloadError": {
+      "description": "Some assemblies were downloaded but others failed.",
+      "bases": [
+        "GenomeDLError"
+      ],
+      "init_args": [
+        {
+          "name": "message",
+          "annotation": "str"
+        },
+        {
+          "name": "failed",
+          "annotation": "list[str]",
+          "default": "None"
+        },
+        {
+          "name": "successful",
+          "annotation": "list[str]",
+          "default": "None"
+        }
+      ]
+    }
+  },
+  "constants": {
+    "DATASETS_API": "https://api.ncbi.nlm.nih.gov/datasets/v2",
+    "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
+    "DEFAULT_LIMIT": 10,
+    "DEFAULT_CPUS": 3,
+    "DEFAULT_MAX_ATTEMPTS": 3,
+    "DEFAULT_SLEEP": 10,
+    "DEFAULT_PREFIX": "genome-dl",
+    "METADATA_SUFFIX": "-metadata.tsv",
+    "FORMATS": {
+      "fasta": [
+        "_genomic.fna.gz",
+        "fna.gz"
+      ],
+      "genbank": [
+        "_genomic.gbff.gz",
+        "gbff.gz"
+      ],
+      "gff": [
+        "_genomic.gff.gz",
+        "gff.gz"
+      ],
+      "gtf": [
+        "_genomic.gtf.gz",
+        "gtf.gz"
+      ],
+      "protein": [
+        "_protein.faa.gz",
+        "faa.gz"
+      ],
+      "cds": [
+        "_cds_from_genomic.fna.gz",
+        "cds.fna.gz"
+      ],
+      "rna": [
+        "_rna_from_genomic.fna.gz",
+        "rna.fna.gz"
+      ],
+      "feature-table": [
+        "_feature_table.txt.gz",
+        "feature_table.txt.gz"
+      ],
+      "assembly-report": [
+        "_assembly_report.txt",
+        "assembly_report.txt"
+      ],
+      "assembly-stats": [
+        "_assembly_stats.txt",
+        "assembly_stats.txt"
+      ]
+    },
+    "ASSEMBLY_LEVELS": {
+      "complete": "complete_genome",
+      "chromosome": "chromosome",
+      "scaffold": "scaffold",
+      "contig": "contig"
+    },
+    "METADATA_COLUMNS": [
+      "accession",
+      "source_database",
+      "assembly_name",
+      "assembly_level",
+      "assembly_status",
+      "organism_name",
+      "tax_id",
+      "strain",
+      "biosample",
+      "bioproject",
+      "submitter",
+      "release_date",
+      "refseq_category",
+      "paired_accession",
+      "total_sequence_length",
+      "number_of_contigs",
+      "contig_n50",
+      "gc_percent",
+      "files"
+    ]
+  }
+}
