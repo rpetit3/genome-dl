@@ -149,7 +149,7 @@ def download_assembly(
     assembly are logged and skipped. Raises DownloadError on hard failure.
     """
     dir_url = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
-    md5s = {} if ignore_md5 else fetch_md5(session, dir_url)
+    md5s = fetch_md5(session, dir_url)
     san = _sanitize(asm.assembly_name)
 
     written: list[Path] = []
@@ -158,12 +158,17 @@ def download_assembly(
         src = f"{asm.accession}_{san}{suffix}"
         target = outdir / f"{asm.accession}.{ext}"
         expected = md5s.get(src)
+        verify = None if ignore_md5 else expected
 
-        if not ignore_md5 and expected is None:
+        if expected is None:
             logging.warning(f"{fmt} not available for {asm.accession}")
             continue
 
-        if target.exists() and not force and (ignore_md5 or md5sum(target) == expected):
+        if (
+            target.exists()
+            and not force
+            and (verify is None or md5sum(target) == verify)
+        ):
             logging.debug(f"{target.name} already present; skipping")
             written.append(target)
             continue
@@ -172,7 +177,7 @@ def download_assembly(
             session,
             f"{dir_url}{src}",
             target,
-            expected,
+            verify,
             max_attempts,
             sleep,
             progress,

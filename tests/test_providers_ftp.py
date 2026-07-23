@@ -189,3 +189,33 @@ class TestDownloadAssembly:
                 sleep=0,
             )
         assert not (tmp_path / "GCF_000005845.2.fna.gz").exists()
+
+    @responses.activate
+    def test_ignore_md5_skips_verification_and_unavailable(self, tmp_path):
+        # md5 is deliberately WRONG and gff is absent from the manifest.
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body="deadbeef  ./GCF_000005845.2_ASM584v2_genomic.fna.gz\n",
+        )
+        responses.add(
+            responses.GET,
+            f"{DIR}GCF_000005845.2_ASM584v2_genomic.fna.gz",
+            body=b"FASTA",
+        )
+        session = make_session(3, None)
+        written = download_assembly(
+            session,
+            make_assembly(),
+            ["fasta", "gff"],  # gff not in manifest
+            tmp_path,
+            FTP_BASE,
+            force=False,
+            ignore_md5=True,
+            max_attempts=2,
+            sleep=0,
+        )
+        # fasta downloads despite md5 mismatch (verification skipped);
+        # gff is skipped as unavailable instead of hard-failing.
+        assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
+        assert (tmp_path / "GCF_000005845.2.fna.gz").read_bytes() == b"FASTA"
