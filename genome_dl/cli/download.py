@@ -310,11 +310,12 @@ def _write_summary(
     params: list[tuple[str, object]],
     n_success: int,
     failures: dict[str, str],
+    run_at: str,
 ) -> None:
     """Write a run summary (version, parameters, results) for reproducibility."""
     lines = [
         f"genome-dl {genome_dl.__version__}",
-        f"Run at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Run at: {run_at}",
         "",
         "Parameters:",
     ]
@@ -342,11 +343,12 @@ def _build_report(
     assemblies: list[dict],
     failures: dict[str, str],
     dry_run: bool,
+    run_at: str,
 ) -> dict:
     """Build the machine-readable run report (version, params, results, assemblies)."""
     return {
         "genome_dl_version": genome_dl.__version__,
-        "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "run_at": run_at,
         "dry_run": dry_run,
         "parameters": {flag: value for flag, value in params},
         "results": {
@@ -430,6 +432,132 @@ def _resolve_targets(session, accession, accessions, failures):
     return targets
 
 
+def _log_asm_result(i: int, total: int, asm, result) -> None:
+    """Log one assembly's outcome: files written and formats unavailable."""
+    n = len(result.files)
+    noun = "file" if n == 1 else "files"
+    extra = ""
+    if result.unavailable:
+        u = len(result.unavailable)
+        fnoun = "format" if u == 1 else "formats"
+        extra = f", {u} {fnoun} unavailable"
+    log = logging.warning if n == 0 else logging.info
+    log(f"[{i}/{total}] {asm.accession} {asm.organism_name} ({n} {noun}{extra})")
+
+
+def _execute_downloads(
+    session,
+    download_session,
+    targets,
+    fmt_list,
+    outdir,
+    force,
+    ignore_md5,
+    max_attempts,
+    sleep,
+    cpus,
+    show_progress,
+    failures,
+):
+    """Download all targets concurrently, returning [(asm, files)] for successes.
+
+    Records per-accession failures in ``failures``. On the first Ctrl-C, queued
+    downloads are cancelled and in-flight files are allowed to finish; a second
+    Ctrl-C force-quits (leaving any '.part' files behind).
+    """
+    successful: list[tuple] = []
+    total = len(targets)
+    progress = None
+    if show_progress and targets:
+        progress = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TaskProgressColumn(),
+            TransferSpeedColumn(),
+            console=CONSOLE,
+        )
+        progress.start()
+
+    executor = ThreadPoolExecutor(max_workers=cpus)
+    try:
+        future_to_asm = {
+            executor.submit(
+                download_assembly,
+                session,
+                download_session,
+                asm,
+                fmt_list,
+                outdir,
+                FTP_BASE,
+                force,
+                ignore_md5,
+                max_attempts,
+                sleep,
+                progress,
+            ): asm
+            for asm in targets
+        }
+        for i, future in enumerate(as_completed(future_to_asm), start=1):
+            asm = future_to_asm[future]
+            try:
+                result = future.result()
+                successful.append((asm, result.files))
+                _log_asm_result(i, total, asm, result)
+            except DownloadError as e:
+                logging.error(f"[{i}/{total}] {asm.accession} failed: {e}")
+                failures[asm.accession] = "download"
+    except KeyboardInterrupt:
+        logging.warning(
+            "Interrupt received; cancelling queued downloads and waiting for "
+            "in-flight files to finish. Press Ctrl-C again to force-quit "
+            "(incomplete '.part' files may remain)."
+        )
+        try:
+            executor.shutdown(wait=True, cancel_futures=True)
+        except KeyboardInterrupt:
+            if progress is not None:
+                progress.stop()
+            logging.warning("Force-quit requested; exiting now.")
+            os._exit(130)
+        raise
+    finally:
+        executor.shutdown(wait=True)
+        if progress is not None:
+            progress.stop()
+
+    return successful
+
+
+def _write_run_outputs(
+    outdir,
+    prefix,
+    summary_params,
+    successful,
+    failures,
+    run_at,
+    emit_json,
+):
+    """Write metadata TSV, run summary, and JSON report; optionally emit JSON."""
+    if successful:
+        rows = [metadata_row(asm, files) for asm, files in successful]
+        tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
+        write_tsv(rows, str(tsv_path), METADATA_COLUMNS)
+        logging.info(f"Wrote metadata to {tsv_path}")
+
+    summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
+    _write_summary(summary_path, summary_params, len(successful), failures, run_at)
+    logging.info(f"Wrote run summary to {summary_path}")
+
+    json_path = outdir / f"{prefix}{JSON_SUFFIX}"
+    assemblies = [_assembly_json(asm, files) for asm, files in successful]
+    report = _build_report(summary_params, assemblies, failures, False, run_at)
+    write_json(report, str(json_path))
+    logging.info(f"Wrote JSON report to {json_path}")
+    if emit_json:
+        _emit_json(report)
+
+
 def _run_download(
     accession,
     accessions,
@@ -476,9 +604,13 @@ def _run_download(
         )
 
     session = make_session(max_attempts, api_key)
-    download_session = make_session(max_attempts, api_key, retries=False)
+    download_session = make_session(
+        max_attempts, api_key, retries=False, rate_limit=False
+    )
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
+    # Run-start timestamp, shared by the summary and JSON report so both agree.
+    run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     summary_params: list[tuple[str, object]] = []
     if species:
@@ -524,7 +656,7 @@ def _run_download(
     if dry_run:
         assemblies = [_assembly_json(asm, []) for asm in targets]
         if emit_json:
-            _emit_json(_build_report(summary_params, assemblies, failures, True))
+            _emit_json(_build_report(summary_params, assemblies, failures, True, run_at))
         else:
             for asm in targets:
                 print(f"{asm.accession}\t{asm.organism_name}\t{asm.assembly_name}")
@@ -550,95 +682,30 @@ def _run_download(
         who = targets[0].accession if n_asm == 1 else f"{n_asm} assemblies"
         logging.info(f"Downloading {which_format} for {who} to {outdir}")
 
-    successful: list[tuple] = []
-    total = len(targets)
-    progress = None
-    if show_progress and targets:
-        progress = Progress(
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            DownloadColumn(),
-            TaskProgressColumn(),
-            TransferSpeedColumn(),
-            console=CONSOLE,
-        )
-        progress.start()
+    successful = _execute_downloads(
+        session,
+        download_session,
+        targets,
+        fmt_list,
+        outdir,
+        force,
+        ignore_md5,
+        max_attempts,
+        sleep,
+        cpus,
+        show_progress,
+        failures,
+    )
 
-    executor = ThreadPoolExecutor(max_workers=cpus)
-    try:
-        future_to_asm = {
-            executor.submit(
-                download_assembly,
-                session,
-                download_session,
-                asm,
-                fmt_list,
-                outdir,
-                FTP_BASE,
-                force,
-                ignore_md5,
-                max_attempts,
-                sleep,
-                progress,
-            ): asm
-            for asm in targets
-        }
-        for i, future in enumerate(as_completed(future_to_asm), start=1):
-            asm = future_to_asm[future]
-            try:
-                result = future.result()
-                successful.append((asm, result.files))
-                n = len(result.files)
-                noun = "file" if n == 1 else "files"
-                extra = ""
-                if result.unavailable:
-                    u = len(result.unavailable)
-                    fnoun = "format" if u == 1 else "formats"
-                    extra = f", {u} {fnoun} unavailable"
-                log = logging.warning if n == 0 else logging.info
-                log(
-                    f"[{i}/{total}] {asm.accession} {asm.organism_name} "
-                    f"({n} {noun}{extra})"
-                )
-            except DownloadError as e:
-                logging.error(f"[{i}/{total}] {asm.accession} failed: {e}")
-                failures[asm.accession] = "download"
-    except KeyboardInterrupt:
-        logging.warning(
-            "Interrupt received; cancelling queued downloads and waiting for "
-            "in-flight files to finish. Press Ctrl-C again to force-quit "
-            "(incomplete '.part' files may remain)."
-        )
-        try:
-            executor.shutdown(wait=True, cancel_futures=True)
-        except KeyboardInterrupt:
-            if progress is not None:
-                progress.stop()
-            logging.warning("Force-quit requested; exiting now.")
-            os._exit(130)
-        raise
-    finally:
-        executor.shutdown(wait=True)
-        if progress is not None:
-            progress.stop()
-
-    if successful:
-        rows = [metadata_row(asm, files) for asm, files in successful]
-        tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
-        write_tsv(rows, str(tsv_path), METADATA_COLUMNS)
-        logging.info(f"Wrote metadata to {tsv_path}")
-
-    summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
-    _write_summary(summary_path, summary_params, len(successful), failures)
-    logging.info(f"Wrote run summary to {summary_path}")
-
-    json_path = outdir / f"{prefix}{JSON_SUFFIX}"
-    assemblies = [_assembly_json(asm, files) for asm, files in successful]
-    report = _build_report(summary_params, assemblies, failures, False)
-    write_json(report, str(json_path))
-    logging.info(f"Wrote JSON report to {json_path}")
-    if emit_json:
-        _emit_json(report)
+    _write_run_outputs(
+        outdir,
+        prefix,
+        summary_params,
+        successful,
+        failures,
+        run_at,
+        emit_json,
+    )
 
     if failures and not successful:
         raise AccessionNotFoundError(

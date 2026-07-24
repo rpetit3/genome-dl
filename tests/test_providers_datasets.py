@@ -227,6 +227,10 @@ class TestMakeSession:
         session = make_session(3, "SECRET")
         assert session.rate_limiter._min_interval == pytest.approx(1 / 10)
 
+    def test_rate_limit_disabled_has_no_limiter(self):
+        session = make_session(3, None, rate_limit=False)
+        assert not hasattr(session, "rate_limiter")
+
 
 class TestRateLimiter:
     def test_spaces_consecutive_calls(self):

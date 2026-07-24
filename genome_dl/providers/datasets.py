@@ -112,7 +112,10 @@ def metadata_row(asm: Assembly, files: list[Path]) -> dict:
 
 
 def make_session(
-    max_attempts: int, api_key: Optional[str], retries: bool = True
+    max_attempts: int,
+    api_key: Optional[str],
+    retries: bool = True,
+    rate_limit: bool = True,
 ) -> requests.Session:
     """Create a requests session with retry/backoff and optional API key."""
     session = requests.Session()
@@ -128,8 +131,11 @@ def make_session(
     session.mount("http://", adapter)
     if api_key:
         session.headers["api-key"] = api_key
-    rps = DATASETS_RATE_LIMIT_WITH_KEY if api_key else DATASETS_RATE_LIMIT
-    session.rate_limiter = _RateLimiter(rps)
+    if rate_limit:
+        # Rate limiting is a Datasets API concern; the FTP download session
+        # streams bytes from a host with no rps ceiling, so it opts out.
+        rps = DATASETS_RATE_LIMIT_WITH_KEY if api_key else DATASETS_RATE_LIMIT
+        session.rate_limiter = _RateLimiter(rps)
     return session
 
 
