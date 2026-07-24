@@ -5,7 +5,7 @@
 - **Version**: 1.0.0
 - **Repository**: https://github.com/rpetit3/genome-dl
 - **License**: MIT
-- **Python**: >=3.10,<3.14
+- **Python**: >=3.11,<3.14
 - **Modules**: 7 | **Functions**: 34 | **Classes**: 12
 
 ## Architecture

@@ -69,6 +69,6 @@ md5-verifiable.
 
 ### Requirements
 
-- Python 3.10–3.13.
+- Python 3.11–3.13.
 
 [1.0.0]: https://github.com/rpetit3/genome-dl/releases/tag/v1.0.0

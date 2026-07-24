@@ -28,7 +28,7 @@ def parse_pyproject() -> dict:
     pyproject_path = PROJECT_ROOT / "pyproject.toml"
     text = pyproject_path.read_text()
 
-    # Simple TOML parsing for the fields we need (avoids tomllib dep on 3.10)
+    # Simple TOML parsing for the fields we need (avoids a tomllib import)
     meta = {}
 
     for line in text.splitlines():

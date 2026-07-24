@@ -12,7 +12,7 @@ alongside a metadata TSV. It is intended to replace `ncbi-genome-download` in Ba
 
 - **Version**: 1.0.0
 - **License**: MIT
-- **Python**: >=3.10, <3.14
+- **Python**: >=3.11, <3.14
 - **Repository**: https://github.com/rpetit3/genome-dl
 
 ## Quick Reference
