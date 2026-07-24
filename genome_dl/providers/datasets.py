@@ -159,8 +159,8 @@ def _base_of(accession: str) -> str:
     return accession.split(".")[0]
 
 
-def _request(session, method, url, context, **kwargs):
-    """Perform an HTTP request, converting failures into ApiError.
+def _request_json(session, method, url, context, **kwargs) -> dict:
+    """Perform an HTTP request and return the parsed JSON body as a dict.
 
     The HTTPAdapter's Retry covers connection failures and retryable status
     codes, but a response interrupted mid-body (ChunkedEncodingError, "Response
@@ -190,7 +190,12 @@ def _request(session, method, url, context, **kwargs):
                 f"Datasets API returned {resp.status_code} for {context}",
                 status_code=resp.status_code,
             )
-        return resp
+        try:
+            return resp.json()
+        except ValueError as err:
+            raise ApiError(
+                f"Datasets API returned a non-JSON response for {context}: {err}"
+            ) from err
 
 
 def resolve_accessions(
@@ -222,8 +227,7 @@ def resolve_accessions(
             payload = dict(body)
             if page_token:
                 payload["page_token"] = page_token
-            resp = _request(session, "POST", url, "accession report", json=payload)
-            data = resp.json()
+            data = _request_json(session, "POST", url, "accession report", json=payload)
             for report in data.get("reports", []) or []:
                 accession = report.get("accession")
                 if not accession:
@@ -290,8 +294,7 @@ def verify_taxon(session: requests.Session, name: str) -> dict:
         ApiError: If the API request fails.
     """
     url = f"{DATASETS_API}/taxonomy/taxon/{quote(name, safe='')}/dataset_report"
-    resp = _request(session, "GET", url, "taxonomy report")
-    data = resp.json()
+    data = _request_json(session, "GET", url, "taxonomy report")
     reports = data.get("reports") or []
     if not reports:
         raise TaxonError(f"no taxonomy record returned for {name!r}")
@@ -329,8 +332,7 @@ def list_taxon_assemblies(
         page_params = dict(params)
         if page_token:
             page_params["page_token"] = page_token
-        resp = _request(session, "GET", url, "taxon report", params=page_params)
-        data = resp.json()
+        data = _request_json(session, "GET", url, "taxon report", params=page_params)
         if first_page and not data.get("total_count"):
             raise EmptyResultError(
                 f"no assemblies found for {name!r} with the requested filters"

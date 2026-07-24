@@ -51,6 +51,16 @@ class TestReadAccessions:
             "GCA_000001.1",
         ]
 
+    def test_bom_prefixed_first_accession(self, tmp_path):
+        # An Excel/Windows export begins with a UTF-8 BOM; it must not corrupt
+        # the first accession (str.strip() does not remove \ufeff).
+        f = tmp_path / "acc.txt"
+        f.write_bytes("\ufeffGCF_000005845.2\nGCF_014058445.1\n".encode("utf-8"))
+        assert read_accessions(str(f)) == [
+            "GCF_000005845.2",
+            "GCF_014058445.1",
+        ]
+
     def test_missing_file_raises_validationerror(self, tmp_path):
         with pytest.raises(ValidationError):
             read_accessions(str(tmp_path / "does-not-exist.txt"))

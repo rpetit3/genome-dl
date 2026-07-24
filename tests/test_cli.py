@@ -516,3 +516,57 @@ class TestConcurrentDownloads:
                 False,
                 failures,
             )
+
+
+class TestOptionBounds:
+    def test_empty_formats_exits_one(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "--formats", ""]
+        )
+        assert result.exit_code == 1
+
+    def test_empty_assembly_level_exits_one(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--species", "Escherichia coli", "--assembly-level", ""]
+        )
+        assert result.exit_code == 1
+
+    def test_cpus_zero_rejected(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "--cpus", "0"]
+        )
+        assert result.exit_code == 2
+
+    def test_max_attempts_zero_rejected(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "--max-attempts", "0"]
+        )
+        assert result.exit_code == 2
+
+    def test_sleep_negative_rejected(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "--sleep=-5"]
+        )
+        assert result.exit_code == 2
+
+    def test_limit_negative_rejected(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--species", "Escherichia coli", "--limit=-1"]
+        )
+        assert result.exit_code == 2
+
+    def test_outdir_is_file_exits_one(self, mocker, tmp_path):
+        _patch_common(mocker)
+        target = tmp_path / "not-a-dir"
+        target.write_text("x")
+        result = CliRunner().invoke(
+            genomedl,
+            ["--accession", "GCF_000005845.2", "--outdir", str(target)],
+        )
+        assert result.exit_code == 1

@@ -76,7 +76,7 @@ def read_accessions(path: PathLike) -> list[str]:
     """
     accessions = []
     try:
-        with open(path) as fh:
+        with open(path, encoding="utf-8-sig") as fh:
             for line in fh:
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#"):

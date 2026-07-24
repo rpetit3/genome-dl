@@ -125,6 +125,50 @@ Live facts confirmed this round:
 - `filters.assembly_source` accepts lowercase `refseq`/`genbank` (the value the
   CLI sends after `--section`.lower()).
 
+### Round 4 — (commit pending)
+Input-boundary hardening. Prior rounds hardened the API/concurrency/transport
+core; this round found the remaining defects all live at the CLI option boundary.
+Every finding was reproduced (live or by driving the real code) before fixing;
+non-issues were probed and dropped rather than filed.
+- **F1 (HIGH): empty `--formats ""` (or `","`) exited 0 having downloaded
+  nothing.** `_parse_formats` filtered empty tokens to `[]`; `download_assembly`'s
+  loop was skipped; the zero-file guard `if not written and (failed or
+  unavailable)` was False, so it returned `AssemblyDownload([],[],[])` — a metadata
+  TSV with an empty `files` column and exit 0 (worst case for a Bactopia pipeline).
+  Fix: `_parse_formats`/`_parse_levels` now raise `ValidationError` on empty input.
+- **F2/F3/F4/F5 (numeric bounds): added `click.IntRange`** — `--max-attempts`
+  min 1 (0 made `range(1,1)` empty → every download failed with `"...: None"`),
+  `--cpus` min 1 (0 → uncaught `ValueError` from `ThreadPoolExecutor`, created
+  before the try → raw traceback), `--sleep` min 0 (negative → `time.sleep(-n)`
+  `ValueError` escaped the retry `except` and turned a retryable failure into a
+  permanent one), `--limit` min 0 (negative silently aliased to "no limit" and
+  downloaded the whole taxon). `--seed` left unbounded (any int is valid).
+- **F6 (BOM): `read_accessions` now opens with `encoding="utf-8-sig"`.** An
+  Excel/Windows export starting with a UTF-8 BOM dropped its first accession —
+  `str.strip()` does not remove `\ufeff`, so `ACCESSION_RE` rejected it; a
+  single-accession file falsely exited 2.
+- **F7 (outdir): `outdir.mkdir` `OSError` → `ValidationError`** (clean exit 1
+  instead of a traceback when `--outdir` names a file or an unwritable path).
+- **F8 (non-JSON 200, defensive): `_request` renamed to `_request_json`** and now
+  parses the body, raising `ApiError` on a non-JSON 200 (captive-portal/proxy).
+  Not reproducible against NCBI (they return proper 404s + JSON) — defensive only.
+- Added regression tests: `TestOptionBounds` (7 CLI tests: empty formats/levels,
+  cpus/max-attempts/sleep/limit bounds, outdir-is-file), a BOM read_accessions
+  test, and a non-JSON-200 `ApiError` test. 96 unit tests pass; coverage 87.85%.
+
+Non-issues probed live and deliberately NOT filed this round (confirmed sound):
+- POST `dataset_report` accession pagination terminates cleanly: with 2 versions
+  and `page_size=1`, page 3 returns `reports:[]` + `next_page_token: null`, so the
+  `resolve_accessions` token loop always ends (no infinite loop from a multi-
+  version-per-base page overflow).
+- Taxon GET returns `total_count` + `next_page_token`; the first-page-only
+  `total_count` empty-check in `list_taxon_assemblies` is correct.
+- `resolve_dir` parent-listing fallback regex embeds the versioned accession, so
+  it disambiguates versions within a shared digit directory (single match).
+- Concurrency/Ctrl-C, TSV/JSON metadata consistency, and `select_for_input`
+  branch logic re-reviewed and confirmed sound.
+
+
 ## Deferred / known (raise only if you think they now matter)
 
 - gpff/genpept + `_translated_cds.faa.gz` + wgs format mapping is absent from
@@ -146,6 +190,37 @@ Live facts confirmed this round:
   empty/unknown status falls through to "superseded". Low.
 - rich-click `use_rich_markup` and poetry `[tool.poetry]` deprecation warnings
   (left as-is).
+
+## Convergence — how many more rounds, and where the value is
+
+Read this before opening a 5th general round. The finding severity has decayed in
+the classic signature of convergence:
+- R1–R3 findings were **data/correctness/security** (silent zero-file exit-0,
+  output-file race, HTTP 400 filter, truncation, text formats 100% broken,
+  version-pin mis-naming, api-key leak).
+- R4 findings were **mostly input-validation/UX** (numeric bounds, BOM, mkdir/
+  JSON guards). The one exception was empty-`--formats`, a real correctness
+  landmine (exit-0 with nothing downloaded) wearing a UX costume.
+
+When findings shift from "corrupts/omits output silently" to "ugly error / needs
+a bound," the well is nearly dry. **"Done" = a round that returns only nitpicks
+and speculative-needs-a-live-probe items and ZERO reproduced correctness bugs.**
+R4 was most of the way there; a 5th *general* line-by-line sweep will very likely
+return only nitpicks. Do NOT keep running broad sweeps to manufacture findings —
+that is exactly how non-existent issues get filed.
+
+Higher-value than another general sweep (do these instead, each narrow):
+1. **Metadata-fidelity + scale spot-check.** Run against genuinely weird records —
+   MAGs/metagenomes, GenBank-only (`GCA` with no RefSeq), atypical `assembly_name`,
+   and a large `--species` run (the deferred full-pagination/RSS item). Field
+   omissions and memory blowups hide here, not in code a reviewer can eyeball.
+2. **Dogfood the real Bactopia integration and run `just test-integration`**
+   against live NCBI. The drop-in-replacement contract is the true acceptance
+   test; it catches more than another reviewer would.
+
+Close the ledger, don't re-review it: the Deferred items above are **decisions,
+not bugs**. Explicitly accept (or fix) them once rather than re-litigating each
+round.
 
 ## Packaging note
 

@@ -60,7 +60,7 @@ CLI (accession / accessions file / species)
 ### genome_dl.providers.datasets
 - **Path**: `genome_dl/providers/datasets.py`
 - **Description**: NCBI Datasets v2 REST API provider.
-- **Functions**: `_assembly_from_report`, `metadata_row`, `make_session`, `_base_of`, `_request`, `resolve_accessions`, `select_for_input`, `verify_taxon`, `list_taxon_assemblies`
+- **Functions**: `_assembly_from_report`, `metadata_row`, `make_session`, `_base_of`, `_request_json`, `resolve_accessions`, `select_for_input`, `verify_taxon`, `list_taxon_assemblies`
 - **Classes**: `_RateLimiter`, `Assembly`
 
 ### genome_dl.providers.ftp

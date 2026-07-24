@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T05:28:40.904248+00:00",
+  "generated_at": "2026-07-24T05:55:49.748565+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -234,7 +234,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 389
+          "lineno": 391
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -257,7 +257,7 @@
             }
           ],
           "returns": null,
-          "lineno": 403
+          "lineno": 409
         },
         "_log_asm_result": {
           "name": "_log_asm_result",
@@ -279,7 +279,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 480
+          "lineno": 486
         },
         "_execute_downloads": {
           "name": "_execute_downloads",
@@ -323,7 +323,7 @@
             }
           ],
           "returns": null,
-          "lineno": 497
+          "lineno": 503
         },
         "_write_run_outputs": {
           "name": "_write_run_outputs",
@@ -352,7 +352,7 @@
             }
           ],
           "returns": null,
-          "lineno": 584
+          "lineno": 590
         },
         "_run_download": {
           "name": "_run_download",
@@ -451,14 +451,14 @@
             }
           ],
           "returns": null,
-          "lineno": 613
+          "lineno": 619
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 803
+          "lineno": 814
         }
       },
       "classes": {},
@@ -752,9 +752,9 @@
           "returns": "str",
           "lineno": 157
         },
-        "_request": {
-          "name": "_request",
-          "description": "Perform an HTTP request, converting failures into ApiError.\n\nThe HTTPAdapter's Retry covers connection failures and retryable status\ncodes, but a response interrupted mid-body (ChunkedEncodingError, \"Response\nended prematurely\") surfaces only when the non-streamed body is read and is\nnot covered by that adapter, so it is retried here.",
+        "_request_json": {
+          "name": "_request_json",
+          "description": "Perform an HTTP request and return the parsed JSON body as a dict.\n\nThe HTTPAdapter's Retry covers connection failures and retryable status\ncodes, but a response interrupted mid-body (ChunkedEncodingError, \"Response\nended prematurely\") surfaces only when the non-streamed body is read and is\nnot covered by that adapter, so it is retried here.",
           "args": [
             {
               "name": "session"
@@ -769,7 +769,7 @@
               "name": "context"
             }
           ],
-          "returns": null,
+          "returns": "dict",
           "lineno": 162
         },
         "resolve_accessions": {
@@ -786,7 +786,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 196
+          "lineno": 201
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -811,7 +811,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 243
+          "lineno": 247
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -827,7 +827,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 283
+          "lineno": 287
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -851,7 +851,7 @@
             }
           ],
           "returns": "list[Assembly]",
-          "lineno": 309
+          "lineno": 312
         }
       },
       "classes": {
@@ -1193,7 +1193,7 @@
     {
       "name": "--limit",
       "default": 10,
-      "type": "int",
+      "type": "click.IntRange(min=0)",
       "help": "Max assemblies to download for --species (0 = no limit)."
     },
     {
@@ -1206,14 +1206,14 @@
       "name": "--max-attempts",
       "short": "-m",
       "default": 3,
-      "type": "int",
+      "type": "click.IntRange(min=1)",
       "help": "Maximum number of download attempts."
     },
     {
       "name": "--sleep",
       "short": "-s",
       "default": 10,
-      "type": "int",
+      "type": "click.IntRange(min=0)",
       "help": "Seconds to sleep between download retries."
     },
     {
@@ -1247,7 +1247,7 @@
     {
       "name": "--cpus",
       "default": 3,
-      "type": "int",
+      "type": "click.IntRange(min=1)",
       "help": "Number of concurrent downloads."
     },
     {

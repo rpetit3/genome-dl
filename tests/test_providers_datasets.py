@@ -189,6 +189,21 @@ class TestVerifyTaxon:
         with pytest.raises(TaxonError):
             verify_taxon(session, "Notreal xyz")
 
+    @responses.activate
+    def test_non_json_200_raises_apierror(self):
+        # A proxy/captive-portal can return HTTP 200 with an HTML body; the
+        # parse failure must surface as a clean ApiError, not a raw traceback.
+        responses.add(
+            responses.GET,
+            f"{DATASETS_API}/taxonomy/taxon/Escherichia%20coli/dataset_report",
+            body="<html><body>proxy login</body></html>",
+            status=200,
+            content_type="text/html",
+        )
+        session = make_session(1, None)
+        with pytest.raises(ApiError):
+            verify_taxon(session, "Escherichia coli")
+
 
 class TestListTaxonAssemblies:
     @responses.activate

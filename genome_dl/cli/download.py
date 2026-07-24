@@ -140,7 +140,7 @@ click.rich_click.OPTION_GROUPS = {
     "--limit",
     default=10,
     show_default=True,
-    type=int,
+    type=click.IntRange(min=0),
     help="Max assemblies to download for --species (0 = no limit).",
 )
 @click.option(
@@ -155,7 +155,7 @@ click.rich_click.OPTION_GROUPS = {
     "--max-attempts",
     default=3,
     show_default=True,
-    type=int,
+    type=click.IntRange(min=1),
     help="Maximum number of download attempts.",
 )
 @click.option(
@@ -163,7 +163,7 @@ click.rich_click.OPTION_GROUPS = {
     "--sleep",
     default=10,
     show_default=True,
-    type=int,
+    type=click.IntRange(min=0),
     help="Seconds to sleep between download retries.",
 )
 @click.option(
@@ -202,7 +202,7 @@ click.rich_click.OPTION_GROUPS = {
     "--cpus",
     default=3,
     show_default=True,
-    type=int,
+    type=click.IntRange(min=1),
     help="Number of concurrent downloads.",
 )
 @click.option(
@@ -376,6 +376,8 @@ def _emit_json(report: dict) -> None:
 def _parse_formats(formats: str) -> list[str]:
     """Parse and validate the --formats option into a list of keys."""
     values = [f.strip() for f in formats.split(",") if f.strip()]
+    if not values:
+        raise ValidationError("no formats given; --formats must not be empty")
     if values == ["all"]:
         return list(FORMATS)
     for value in values:
@@ -389,6 +391,10 @@ def _parse_formats(formats: str) -> list[str]:
 def _parse_levels(assembly_level: str) -> list[str]:
     """Parse and validate the --assembly-level option into a list of keys."""
     values = [level.strip() for level in assembly_level.split(",") if level.strip()]
+    if not values:
+        raise ValidationError(
+            "no assembly levels given; --assembly-level must not be empty"
+        )
     if values == ["all"]:
         return ["all"]
     for value in values:
@@ -675,7 +681,12 @@ def _run_download(
         identity_encoding=True,
     )
     outdir = Path(outdir).resolve()
-    outdir.mkdir(parents=True, exist_ok=True)
+    try:
+        outdir.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        raise ValidationError(
+            f"cannot create output directory {outdir}: {err}"
+        ) from err
     # Run-start timestamp, shared by the summary and JSON report so both agree.
     run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
