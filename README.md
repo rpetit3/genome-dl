@@ -62,44 +62,59 @@ genome-dl --help
 
  Download genomes from NCBI Datasets.
 
-╭─ Input Options (choose one) ─────────────────────────────────────────────────────────────────────╮
-│ --accession   TEXT  A single NCBI assembly accession to download (e.g. GCF_000005845.2).         │
-│ --accessions  TEXT  Path to a file of accessions, one per line.                                  │
-│ --species     TEXT  A species (or any taxon) name to download assemblies for.                    │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Filter Options ───────────────────────────────────────────────────────────────────────────────────╮
-│ --section         [refseq|genbank|all]  Assembly source to query for --species. [default: refseq]  │
-│ --assembly-level  TEXT                  Comma-separated assembly levels for --species              │
-│                                         (complete,chromosome,scaffold,contig or all). [default:    │
-│                                         all]                                                       │
-│ --formats         TEXT                  Comma-separated formats to download                        │
-│                                         (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated- │
-│                                         cds,rna,feature-table,assembly-report,assembly-stats or     │
-│                                         all). [default: fasta]                                     │
-│ --limit           INTEGER RANGE [x>=0]  Download the first N assemblies for --species (NCBI        │
-│                                         relevance order, reference first; 0 = no limit). [default: │
-│                                         10]                                                        │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Download Options ───────────────────────────────────────────────────────────────────────────────╮
-│ --max-attempts  -m  INTEGER  Maximum number of download attempts. [default: 3]                   │
-│ --sleep         -s  INTEGER  Seconds to sleep between download retries. [default: 10]            │
-│ --force         -F           Overwrite existing files.                                           │
-│ --ignore        -I           Skip MD5 validation of downloaded files.                            │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Additional Options ───────────────────────────────────────────────────────────────────────────────╮
-│ --outdir    -o  TEXT                  Directory to write downloads to. [default: ./]               │
-│ --prefix        TEXT                  Prefix for the metadata TSV file. [default: genome-dl]       │
-│ --cpus          INTEGER RANGE [x>=1]  Number of concurrent FTP downloads (values above 16 may      │
-│                                       strain NCBI). [default: 3]                                   │
-│ --dry-run                             List assemblies without downloading.                         │
-│ --progress                            Show per-file download progress.                             │
-│ --json                                Emit the run report as compact JSON to stdout for piping     │
-│                                       into other tools.                                            │
-│ --silent                              Only critical errors will be printed.                        │
-│ --verbose   -v                        Print debug related text.                                    │
-│ --version   -V                        Show the version and exit.                                   │
-│ --help      -h                        Show this message and exit.                                  │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Input Options (choose one) ─────────────────────────────────────────────────╮
+│ --accession   TEXT  A single NCBI assembly accession to download (e.g.       │
+│                     GCF_000005845.2).                                        │
+│ --accessions  TEXT  Path to a file of accessions, one per line.              │
+│ --species     TEXT  A species (or any taxon) name to download assemblies     │
+│                     for.                                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Filter Options ─────────────────────────────────────────────────────────────╮
+│ --section         [refseq|genbank|all]  Assembly source to query for         │
+│                                         --species. [default: refseq]         │
+│ --assembly-level  TEXT                  Comma-separated assembly levels for  │
+│                                         --species                            │
+│                                         (complete,chromosome,scaffold,contig │
+│                                         or all). [default: all]              │
+│ --formats         TEXT                  Comma-separated formats to download  │
+│                                         (fasta,genbank,wgs,gff,gtf,protein,g │
+│                                         enpept,cds,translated-cds,rna,featur │
+│                                         e-table,assembly-report,assembly-sta │
+│                                         ts or all). [default: fasta]         │
+│ --limit           INTEGER RANGE [x>=0]  Download the first N assemblies for  │
+│                                         --species (NCBI relevance order,     │
+│                                         reference first; 0 = no limit).      │
+│                                         [default: 10]                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Download Options ───────────────────────────────────────────────────────────╮
+│ --max-attempts    -m  INTEGER RANGE [x>=1]  Maximum number of download       │
+│                                             attempts. [default: 3]           │
+│ --sleep           -s  INTEGER RANGE [x>=0]  Seconds to sleep between         │
+│                                             download retries. [default: 10]  │
+│ --force           -F                        Overwrite existing files.        │
+│ --ignore          -I                        Skip MD5 validation of           │
+│                                             downloaded files.                │
+│ --allow-outdated                            Download an explicitly requested │
+│                                             outdated (superseded) accession  │
+│                                             version instead of erroring.     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Additional Options ─────────────────────────────────────────────────────────╮
+│ --outdir    -o  TEXT                  Directory to write downloads to.       │
+│                                       [default: ./]                          │
+│ --prefix        TEXT                  Prefix for the metadata TSV file.      │
+│                                       [default: genome-dl]                   │
+│ --cpus          INTEGER RANGE [x>=1]  Number of concurrent FTP downloads     │
+│                                       (values above 16 may strain NCBI).     │
+│                                       [default: 3]                           │
+│ --dry-run                             List assemblies without downloading.   │
+│ --progress                            Show per-file download progress.       │
+│ --json                                Emit the run report as compact JSON to │
+│                                       stdout for piping into other tools.    │
+│ --silent                              Only critical errors will be printed.  │
+│ --verbose   -v                        Print debug related text.              │
+│ --version   -V                        Show the version and exit.             │
+│ --help      -h                        Show this message and exit.            │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 `genome-dl` requires exactly one of `--accession`, `--accessions`, or `--species` as input.
@@ -107,12 +122,14 @@ Providing none, or more than one, is an error.
 
 ### --accession
 
-A single NCBI assembly accession (e.g. `GCF_000005845.2` or `GCA_000005845.2`). The latest
-version of the accession is always resolved and downloaded:
+A single NCBI assembly accession (e.g. `GCF_000005845.2` or `GCA_000005845.2`).
 
-- The latest version of an accession is always selected.
-- If a newer version supersedes the one requested, a warning is logged and the newer version is
-  downloaded instead.
+- A versionless accession (e.g. `GCF_000005845`) resolves to the current version.
+- An explicit version that is still current is downloaded as requested.
+- An explicit version that is outdated (a newer version supersedes it) is refused by
+  default with an error naming the current version. Omit the version to fetch the
+  current one, or pass `--allow-outdated` to download the exact version requested (a
+  warning notes that a newer version exists).
 - If the requested accession is suppressed on NCBI, the run fails.
 
 ### --accessions

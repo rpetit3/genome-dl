@@ -87,6 +87,7 @@ click.rich_click.OPTION_GROUPS = {
                 "--sleep",
                 "--force",
                 "--ignore",
+                "--allow-outdated",
             ],
         },
         {
