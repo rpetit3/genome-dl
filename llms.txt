@@ -6,7 +6,7 @@
 - **Repository**: https://github.com/rpetit3/genome-dl
 - **License**: MIT
 - **Python**: >=3.10,<3.14
-- **Modules**: 7 | **Functions**: 31 | **Classes**: 11
+- **Modules**: 7 | **Functions**: 34 | **Classes**: 11
 
 ## Architecture
 
@@ -46,7 +46,7 @@ CLI (accession / accessions file / species)
 
 ### genome_dl.cli.download
 - **Path**: `genome_dl/cli/download.py`
-- **Functions**: `genomedl`, `_write_summary`, `_assembly_json`, `_build_report`, `_emit_json`, `_parse_formats`, `_parse_levels`, `_resolve_targets`, `_run_download`, `main`
+- **Functions**: `genomedl`, `_write_summary`, `_assembly_json`, `_build_report`, `_emit_json`, `_parse_formats`, `_parse_levels`, `_resolve_targets`, `_log_asm_result`, `_execute_downloads`, `_write_run_outputs`, `_run_download`, `main`
 
 ### genome_dl.constants
 - **Path**: `genome_dl/constants.py`

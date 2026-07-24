@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T00:25:15.624503+00:00",
+  "generated_at": "2026-07-24T03:32:48.960044+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -143,6 +143,10 @@
             {
               "name": "failures",
               "annotation": "dict[str, str]"
+            },
+            {
+              "name": "run_at",
+              "annotation": "str"
             }
           ],
           "returns": "None",
@@ -161,7 +165,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 333
+          "lineno": 334
         },
         "_build_report": {
           "name": "_build_report",
@@ -182,10 +186,14 @@
             {
               "name": "dry_run",
               "annotation": "bool"
+            },
+            {
+              "name": "run_at",
+              "annotation": "str"
             }
           ],
           "returns": "dict",
-          "lineno": 340
+          "lineno": 341
         },
         "_emit_json": {
           "name": "_emit_json",
@@ -197,7 +205,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 361
+          "lineno": 363
         },
         "_parse_formats": {
           "name": "_parse_formats",
@@ -209,7 +217,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 366
+          "lineno": 368
         },
         "_parse_levels": {
           "name": "_parse_levels",
@@ -221,7 +229,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 379
+          "lineno": 381
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -241,7 +249,102 @@
             }
           ],
           "returns": null,
-          "lineno": 393
+          "lineno": 395
+        },
+        "_log_asm_result": {
+          "name": "_log_asm_result",
+          "description": "Log one assembly's outcome: files written and formats unavailable.",
+          "args": [
+            {
+              "name": "i",
+              "annotation": "int"
+            },
+            {
+              "name": "total",
+              "annotation": "int"
+            },
+            {
+              "name": "asm"
+            },
+            {
+              "name": "result"
+            }
+          ],
+          "returns": "None",
+          "lineno": 435
+        },
+        "_execute_downloads": {
+          "name": "_execute_downloads",
+          "description": "Download all targets concurrently, returning [(asm, files)] for successes.\n\nRecords per-accession failures in ``failures``. On the first Ctrl-C, queued\ndownloads are cancelled and in-flight files are allowed to finish; a second\nCtrl-C force-quits (leaving any '.part' files behind).",
+          "args": [
+            {
+              "name": "session"
+            },
+            {
+              "name": "download_session"
+            },
+            {
+              "name": "targets"
+            },
+            {
+              "name": "fmt_list"
+            },
+            {
+              "name": "outdir"
+            },
+            {
+              "name": "force"
+            },
+            {
+              "name": "ignore_md5"
+            },
+            {
+              "name": "max_attempts"
+            },
+            {
+              "name": "sleep"
+            },
+            {
+              "name": "cpus"
+            },
+            {
+              "name": "show_progress"
+            },
+            {
+              "name": "failures"
+            }
+          ],
+          "returns": null,
+          "lineno": 448
+        },
+        "_write_run_outputs": {
+          "name": "_write_run_outputs",
+          "description": "Write metadata TSV, run summary, and JSON report; optionally emit JSON.",
+          "args": [
+            {
+              "name": "outdir"
+            },
+            {
+              "name": "prefix"
+            },
+            {
+              "name": "summary_params"
+            },
+            {
+              "name": "successful"
+            },
+            {
+              "name": "failures"
+            },
+            {
+              "name": "run_at"
+            },
+            {
+              "name": "emit_json"
+            }
+          ],
+          "returns": null,
+          "lineno": 532
         },
         "_run_download": {
           "name": "_run_download",
@@ -335,14 +438,14 @@
             }
           ],
           "returns": null,
-          "lineno": 433
+          "lineno": 561
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 657
+          "lineno": 726
         }
       },
       "classes": {},
@@ -608,6 +711,11 @@
               "name": "retries",
               "annotation": "bool",
               "default": "True"
+            },
+            {
+              "name": "rate_limit",
+              "annotation": "bool",
+              "default": "True"
             }
           ],
           "returns": "requests.Session",
@@ -623,7 +731,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 136
+          "lineno": 142
         },
         "_request": {
           "name": "_request",
@@ -643,7 +751,7 @@
             }
           ],
           "returns": null,
-          "lineno": 141
+          "lineno": 147
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -659,7 +767,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 158
+          "lineno": 164
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -679,7 +787,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 201
+          "lineno": 207
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -695,7 +803,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 234
+          "lineno": 240
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -719,7 +827,7 @@
             }
           ],
           "returns": "list[Assembly]",
-          "lineno": 260
+          "lineno": 266
         }
       },
       "classes": {
@@ -968,7 +1076,7 @@
             }
           ],
           "returns": "tuple[str, Optional[int]]",
-          "lineno": 42
+          "lineno": 39
         },
         "read_accessions": {
           "name": "read_accessions",
@@ -981,7 +1089,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 69
+          "lineno": 66
         },
         "write_tsv": {
           "name": "write_tsv",
@@ -1004,7 +1112,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 93
+          "lineno": 90
         },
         "write_json": {
           "name": "write_json",
@@ -1022,7 +1130,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 116
+          "lineno": 113
         }
       },
       "classes": {},
