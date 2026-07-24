@@ -2,7 +2,7 @@
 
 > Download genomes from NCBI Datasets
 
-- **Version**: 0.1.0
+- **Version**: 1.0.0
 - **Repository**: https://github.com/rpetit3/genome-dl
 - **License**: MIT
 - **Python**: >=3.10,<3.14

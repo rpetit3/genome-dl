@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genome-dl"
-version = "0.1.0"
+version = "1.0.0"
 description = "Download genomes from NCBI Datasets"
 authors = ["Robert A. Petit III <robbie.petit@gmail.com>"]
 license = "MIT"

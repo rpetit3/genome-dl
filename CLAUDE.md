@@ -10,7 +10,7 @@ downloads sequence files **directly from the NCBI FTP site**, where files are al
 gzipped and md5-verifiable. Downloaded files are written flat as `{ACCESSION}.{EXT}`,
 alongside a metadata TSV. It is intended to replace `ncbi-genome-download` in Bactopia.
 
-- **Version**: 0.1.0
+- **Version**: 1.0.0
 - **License**: MIT
 - **Python**: >=3.10, <3.14
 - **Repository**: https://github.com/rpetit3/genome-dl
