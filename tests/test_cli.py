@@ -1,6 +1,7 @@
 """Tests for the genome-dl CLI."""
 
 import json
+import random
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -227,3 +228,46 @@ class TestExitCodes:
         assert not list(Path(tmp_path).glob("*-metadata.tsv"))
         assert not list(Path(tmp_path).glob("*-summary.txt"))
         assert not list(Path(tmp_path).glob("*.json"))
+
+    def test_species_limit_seed_is_deterministic(self, mocker, tmp_path):
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.verify_taxon",
+            return_value={
+                "tax_id": 562,
+                "rank": "species",
+                "name": "Escherichia coli",
+            },
+        )
+        pool = [make_assembly(accession=f"GCF_00000000{i}.1") for i in range(1, 6)]
+        mocker.patch("genome_dl.cli.download.list_taxon_assemblies", return_value=pool)
+        downloaded = []
+
+        def fake_download(*args, **kwargs):
+            asm = args[2]
+            downloaded.append(asm.accession)
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [])
+
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly", side_effect=fake_download
+        )
+        result = CliRunner().invoke(
+            genomedl,
+            [
+                "--species",
+                "Escherichia coli",
+                "--limit",
+                "2",
+                "--seed",
+                "1",
+                "--cpus",
+                "1",
+                "-o",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0
+        # --limit picks exactly N, and --seed makes the subset reproducible.
+        expected = {a.accession for a in random.Random(1).sample(pool, 2)}
+        assert set(downloaded) == expected
+        assert len(downloaded) == 2

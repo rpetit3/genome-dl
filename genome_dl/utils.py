@@ -26,17 +26,14 @@ def md5sum(path: PathLike) -> Optional[str]:
         str: Calculated MD5 checksum, or None if the file does not exist.
     """
     path = Path(path)
-    megabyte = 1_048_576
-    buffer_size = 10 * megabyte
-    if path.exists():
-        hash_md5 = hashlib.md5()
-        with open(path, "rb") as fp:
-            for chunk in iter(lambda: fp.read(buffer_size), b""):
-                hash_md5.update(chunk)
-
-        return hash_md5.hexdigest()
-    else:
+    if not path.exists():
         return None
+    buffer_size = 10 * 1_048_576
+    hash_md5 = hashlib.md5()
+    with open(path, "rb") as fp:
+        for chunk in iter(lambda: fp.read(buffer_size), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 
 def parse_accession(token: str) -> tuple[str, Optional[int]]:

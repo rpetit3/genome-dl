@@ -61,10 +61,13 @@ def test_suppressed_detected(session):
     assert asm is None
 
 
-def test_species_listing_limited(session):
+def test_species_listing_filters_by_level(session):
     asms = list_taxon_assemblies(session, "Escherichia coli", "refseq", ["complete"])
     assert len(asms) > 0
-    assert all(a.status == "current" for a in asms)
+    # The level filter must be honored: every returned assembly is complete.
+    assert all(
+        a.report["assembly_info"]["assembly_level"] == "Complete Genome" for a in asms
+    )
 
 
 def test_bad_species_raises(session):

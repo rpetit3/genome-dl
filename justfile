@@ -19,7 +19,7 @@ lint:
 install:
     poetry install --no-interaction
 
-# check formatting, linting, and tests
+# check formatting and linting
 check: check-fmt lint
 
 # prints out the commands to run to tag the release and push it

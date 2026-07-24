@@ -350,7 +350,7 @@ def _build_report(
         "genome_dl_version": genome_dl.__version__,
         "run_at": run_at,
         "dry_run": dry_run,
-        "parameters": {flag: value for flag, value in params},
+        "parameters": dict(params),
         "results": {
             "downloaded": 0 if dry_run else len(assemblies),
             "failed": len(failures),
@@ -656,7 +656,9 @@ def _run_download(
     if dry_run:
         assemblies = [_assembly_json(asm, []) for asm in targets]
         if emit_json:
-            _emit_json(_build_report(summary_params, assemblies, failures, True, run_at))
+            _emit_json(
+                _build_report(summary_params, assemblies, failures, True, run_at)
+            )
         else:
             for asm in targets:
                 print(f"{asm.accession}\t{asm.organism_name}\t{asm.assembly_name}")

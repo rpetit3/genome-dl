@@ -64,7 +64,7 @@ genome-dl --accession GCF_000005845.2 --json | jq '.assemblies[].accession'
 | `--assembly-level` | `all` | Comma-separated levels (`complete`, `chromosome`, `scaffold`, `contig`). |
 | `--formats` | `fasta` | Comma-separated formats (`fasta`, `genbank`, `gff`, `gtf`, `protein`, `cds`, `rna`, `feature-table`, `assembly-report`, `assembly-stats`, `all`). |
 | `--limit` | `10` | Max assemblies for `--species` (`0` = no limit). |
-| `--seed` | | Random seed for reproducible `--species` subsetting. |
+| `--seed` | `42` | Random seed for reproducible `--species` subsetting. |
 | `-o, --outdir` | `./` | Output directory. |
 | `--prefix` | `genome-dl` | Prefix for the metadata TSV. |
 | `--cpus` | `3` | Concurrent downloads. |

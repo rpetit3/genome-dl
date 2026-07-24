@@ -212,10 +212,10 @@ def select_for_input(
     Returns ``(assembly, action)`` where action is one of
     ``selected``, ``superseded``, ``suppressed``, ``notfound``.
     """
-    current = next((a for a in versions.values() if a.status == "current"), None)
-
     if not versions:
         return None, "notfound"
+
+    current = next((a for a in versions.values() if a.status == "current"), None)
 
     if version is None:
         if current is not None:
