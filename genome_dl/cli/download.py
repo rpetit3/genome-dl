@@ -450,6 +450,10 @@ def _log_asm_result(i: int, total: int, asm, result) -> None:
         u = len(result.unavailable)
         fnoun = "format" if u == 1 else "formats"
         extra = f", {u} {fnoun} unavailable"
+    if result.failed:
+        f = len(result.failed)
+        fnoun = "format" if f == 1 else "formats"
+        extra += f", {f} {fnoun} failed"
     log = logging.warning if n == 0 else logging.info
     log(f"[{i}/{total}] {asm.accession} {asm.organism_name} ({n} {noun}{extra})")
 
@@ -516,6 +520,9 @@ def _execute_downloads(
             except DownloadError as e:
                 logging.error(f"[{i}/{total}] {asm.accession} failed: {e}")
                 failures[asm.accession] = "download"
+            except Exception as e:
+                logging.error(f"[{i}/{total}] {asm.accession} failed unexpectedly: {e}")
+                failures[asm.accession] = "error"
     except KeyboardInterrupt:
         logging.warning(
             "Interrupt received; cancelling queued downloads and waiting for "
@@ -605,6 +612,10 @@ def _run_download(
 
     fmt_list = _parse_formats(formats)
     level_list = _parse_levels(assembly_level)
+    if prefix in ("", ".", "..") or prefix != Path(prefix).name:
+        raise ValidationError(
+            f"--prefix must be a bare filename, not a path: {prefix!r}"
+        )
 
     if dry_run:
         logging.warning(
@@ -719,9 +730,10 @@ def _run_download(
     )
 
     if failures and not successful:
-        # Purely transient download failures (the accessions resolved fine) are a
-        # download error (exit 1), not a "not found" (exit 2).
-        if all(reason == "download" for reason in failures.values()):
+        # Operational failures (transient download errors or unexpected I/O
+        # errors) mean the accessions resolved fine, so they are a download
+        # error (exit 1), not a "not found" (exit 2).
+        if all(reason in ("download", "error") for reason in failures.values()):
             raise DownloadError(
                 f"all {len(failures)} download(s) failed: {', '.join(failures)}"
             )

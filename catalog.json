@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T03:32:48.960044+00:00",
+  "generated_at": "2026-07-24T04:35:44.456911+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -271,7 +271,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 435
+          "lineno": 444
         },
         "_execute_downloads": {
           "name": "_execute_downloads",
@@ -315,7 +315,7 @@
             }
           ],
           "returns": null,
-          "lineno": 448
+          "lineno": 461
         },
         "_write_run_outputs": {
           "name": "_write_run_outputs",
@@ -344,7 +344,7 @@
             }
           ],
           "returns": null,
-          "lineno": 532
+          "lineno": 548
         },
         "_run_download": {
           "name": "_run_download",
@@ -438,14 +438,14 @@
             }
           ],
           "returns": null,
-          "lineno": 561
+          "lineno": 577
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 726
+          "lineno": 753
         }
       },
       "classes": {},
@@ -462,6 +462,7 @@
         "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
         "DATASETS_RATE_LIMIT": 5,
         "DATASETS_RATE_LIMIT_WITH_KEY": 10,
+        "ACCESSION_BATCH_SIZE": 1000,
         "METADATA_SUFFIX": "-metadata.tsv",
         "SUMMARY_SUFFIX": "-summary.txt",
         "JSON_SUFFIX": ".json",
@@ -677,7 +678,7 @@
             }
           ],
           "returns": "Assembly",
-          "lineno": 68
+          "lineno": 73
         },
         "metadata_row": {
           "name": "metadata_row",
@@ -693,7 +694,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 83
+          "lineno": 88
         },
         "make_session": {
           "name": "make_session",
@@ -719,7 +720,7 @@
             }
           ],
           "returns": "requests.Session",
-          "lineno": 114
+          "lineno": 119
         },
         "_base_of": {
           "name": "_base_of",
@@ -731,11 +732,11 @@
             }
           ],
           "returns": "str",
-          "lineno": 142
+          "lineno": 149
         },
         "_request": {
           "name": "_request",
-          "description": "Perform an HTTP request, converting failures into ApiError.",
+          "description": "Perform an HTTP request, converting failures into ApiError.\n\nThe HTTPAdapter's Retry covers connection failures and retryable status\ncodes, but a response interrupted mid-body (ChunkedEncodingError, \"Response\nended prematurely\") surfaces only when the non-streamed body is read and is\nnot covered by that adapter, so it is retried here.",
           "args": [
             {
               "name": "session"
@@ -751,7 +752,7 @@
             }
           ],
           "returns": null,
-          "lineno": 147
+          "lineno": 154
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -767,7 +768,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 164
+          "lineno": 188
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -787,7 +788,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 207
+          "lineno": 235
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -803,7 +804,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 240
+          "lineno": 268
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -827,7 +828,7 @@
             }
           ],
           "returns": "list[Assembly]",
-          "lineno": 266
+          "lineno": 294
         }
       },
       "classes": {
@@ -841,14 +842,14 @@
               "annotation": "float"
             }
           ],
-          "lineno": 29
+          "lineno": 34
         },
         "Assembly": {
           "name": "Assembly",
           "description": "A single NCBI genome assembly and its source metadata.",
           "bases": [],
           "init_args": [],
-          "lineno": 56
+          "lineno": 61
         }
       },
       "constants": {}
@@ -868,7 +869,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 31
+          "lineno": 32
         },
         "assembly_dir_url": {
           "name": "assembly_dir_url",
@@ -888,7 +889,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 36
+          "lineno": 37
         },
         "resolve_dir": {
           "name": "resolve_dir",
@@ -912,7 +913,7 @@
             }
           ],
           "returns": "tuple[str, dict[str, str]]",
-          "lineno": 49
+          "lineno": 50
         },
         "_parse_md5": {
           "name": "_parse_md5",
@@ -924,7 +925,7 @@
             }
           ],
           "returns": "dict[str, str]",
-          "lineno": 86
+          "lineno": 87
         },
         "fetch_md5": {
           "name": "fetch_md5",
@@ -940,7 +941,7 @@
             }
           ],
           "returns": "dict[str, str]",
-          "lineno": 98
+          "lineno": 99
         },
         "_download_file": {
           "name": "_download_file",
@@ -979,11 +980,11 @@
             }
           ],
           "returns": "None",
-          "lineno": 111
+          "lineno": 112
         },
         "download_assembly": {
           "name": "download_assembly",
-          "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns an ``AssemblyDownload`` with the written file paths and the\nrequested formats that were unavailable. Raises DownloadError on failure.",
+          "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns an ``AssemblyDownload`` with the written file paths, the requested\nformats that were unavailable (absent from the manifest), and the formats\nthat errored. Files from successful formats are kept even if others fail;\nDownloadError is raised only when the assembly yields zero files.",
           "args": [
             {
               "name": "session",
@@ -1031,7 +1032,7 @@
             }
           ],
           "returns": "AssemblyDownload",
-          "lineno": 163
+          "lineno": 171
         }
       },
       "classes": {
@@ -1371,6 +1372,7 @@
     "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
     "DATASETS_RATE_LIMIT": 5,
     "DATASETS_RATE_LIMIT_WITH_KEY": 10,
+    "ACCESSION_BATCH_SIZE": 1000,
     "METADATA_SUFFIX": "-metadata.tsv",
     "SUMMARY_SUFFIX": "-summary.txt",
     "JSON_SUFFIX": ".json",

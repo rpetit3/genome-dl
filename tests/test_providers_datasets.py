@@ -4,11 +4,13 @@ import time
 from pathlib import Path
 
 import pytest
+import requests
 import responses
 
 from genome_dl.constants import DATASETS_API
 from genome_dl.exceptions import ApiError, EmptyResultError, TaxonError
 from genome_dl.providers.datasets import (
+    _assembly_from_report,
     _RateLimiter,
     list_taxon_assemblies,
     make_session,
@@ -247,3 +249,122 @@ class TestRateLimiter:
         for _ in range(5):
             limiter.acquire()
         assert time.monotonic() - start < 0.01
+
+
+class TestMultiLevelFilter:
+    @responses.activate
+    def test_multiple_levels_sent_as_repeated_params(self):
+        # Regression: the REST API rejects a comma-joined assembly_level filter
+        # (HTTP 400). Multiple levels must be repeated query params, which
+        # requests encodes automatically from a list value.
+        url = f"{DATASETS_API}/genome/taxon/Escherichia%20coli/dataset_report"
+        responses.add(
+            responses.GET,
+            url,
+            json={"total_count": 1, "reports": [make_report("GCF_000005845.2")]},
+        )
+        session = make_session(3, None)
+        list_taxon_assemblies(
+            session, "Escherichia coli", "refseq", ["complete", "chromosome"]
+        )
+        sent = responses.calls[0].request.url
+        assert sent.count("filters.assembly_level=") == 2
+        assert "complete_genome" in sent
+        assert "chromosome" in sent
+        assert "%2C" not in sent  # no comma-joined form
+
+
+class TestNullNestedFields:
+    def test_assembly_from_report_tolerates_nulls(self):
+        # NCBI could return keys present-but-null; .get(k, {}) would not guard
+        # that, so null must be coalesced to {} to avoid an AttributeError.
+        report = {
+            "accession": "GCF_000005845.2",
+            "assembly_info": None,
+            "organism": None,
+            "assembly_stats": None,
+        }
+        asm = _assembly_from_report(report)
+        assert asm.accession == "GCF_000005845.2"
+        assert asm.assembly_name == ""
+        assert asm.tax_id is None
+
+    def test_metadata_row_tolerates_nulls(self):
+        report = {
+            "accession": "GCF_000005845.2",
+            "assembly_info": None,
+            "organism": None,
+            "assembly_stats": None,
+        }
+        asm = make_assembly()
+        asm.report = report
+        row = metadata_row(asm, [])
+        assert row["accession"] == "GCF_000005845.2"
+        assert row["strain"] == ""
+        assert row["biosample"] == ""
+
+
+class TestResolveBatching:
+    @responses.activate
+    def test_large_lists_are_chunked(self):
+        # >1000 bases must be split across multiple POSTs, not one oversized body.
+        url = f"{DATASETS_API}/genome/dataset_report"
+        responses.add(responses.POST, url, json={"reports": []})
+        responses.add(responses.POST, url, json={"reports": []})
+        session = make_session(3, None)
+        bases = [f"GCF_{i:09d}" for i in range(1500)]
+        resolve_accessions(session, bases)
+        assert len(responses.calls) == 2
+        import json as _json
+
+        first_body = _json.loads(responses.calls[0].request.body)
+        second_body = _json.loads(responses.calls[1].request.body)
+        assert len(first_body["accessions"]) == 1000
+        assert len(second_body["accessions"]) == 500
+
+
+class TestRequestStreamRetry:
+    @responses.activate
+    def test_interrupted_stream_is_retried(self, mocker):
+        # A response dropped mid-body (ChunkedEncodingError) is not covered by
+        # the HTTPAdapter retry; _request retries it and succeeds on the next.
+        mocker.patch("genome_dl.providers.datasets.time.sleep")
+        url = f"{DATASETS_API}/taxonomy/taxon/Escherichia%20coli/dataset_report"
+        responses.add(
+            responses.GET,
+            url,
+            body=requests.exceptions.ChunkedEncodingError("Response ended prematurely"),
+        )
+        responses.add(
+            responses.GET,
+            url,
+            json={
+                "reports": [
+                    {
+                        "taxonomy": {
+                            "tax_id": 562,
+                            "rank": "SPECIES",
+                            "current_scientific_name": {"name": "Escherichia coli"},
+                        }
+                    }
+                ]
+            },
+        )
+        session = make_session(3, None)
+        result = verify_taxon(session, "Escherichia coli")
+        assert result["tax_id"] == 562
+        assert len(responses.calls) == 2
+
+    @responses.activate
+    def test_persistent_stream_drop_exhausts_to_apierror(self, mocker):
+        mocker.patch("genome_dl.providers.datasets.time.sleep")
+        url = f"{DATASETS_API}/taxonomy/taxon/Escherichia%20coli/dataset_report"
+        responses.add(
+            responses.GET,
+            url,
+            body=requests.exceptions.ChunkedEncodingError("Response ended prematurely"),
+        )
+        session = make_session(2, None)
+        with pytest.raises(ApiError):
+            verify_taxon(session, "Escherichia coli")
+        assert len(responses.calls) == 2

@@ -18,12 +18,17 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from genome_dl.constants import (
+    ACCESSION_BATCH_SIZE,
     ASSEMBLY_LEVELS,
     DATASETS_API,
     DATASETS_RATE_LIMIT,
     DATASETS_RATE_LIMIT_WITH_KEY,
 )
 from genome_dl.exceptions import ApiError, EmptyResultError, TaxonError
+
+# Backoff (seconds, multiplied by attempt number) between retries of a Datasets
+# API request whose response stream was interrupted mid-body.
+_STREAM_RETRY_BACKOFF = 0.5
 
 
 class _RateLimiter:
@@ -67,8 +72,8 @@ class Assembly:
 
 def _assembly_from_report(report: dict) -> Assembly:
     """Build an Assembly from a Datasets dataset_report entry."""
-    ai = report.get("assembly_info", {})
-    org = report.get("organism", {})
+    ai = report.get("assembly_info") or {}
+    org = report.get("organism") or {}
     return Assembly(
         accession=report.get("accession", ""),
         assembly_name=ai.get("assembly_name", ""),
@@ -83,9 +88,9 @@ def _assembly_from_report(report: dict) -> Assembly:
 def metadata_row(asm: Assembly, files: list[Path]) -> dict:
     """Flatten an assembly's report into METADATA_COLUMNS keys for the TSV."""
     report = asm.report
-    ai = report.get("assembly_info", {})
-    org = report.get("organism", {})
-    stats = report.get("assembly_stats", {})
+    ai = report.get("assembly_info") or {}
+    org = report.get("organism") or {}
+    stats = report.get("assembly_stats") or {}
     return {
         "accession": report.get("accession", asm.accession),
         "source_database": report.get("source_database", "").replace(
@@ -96,8 +101,8 @@ def metadata_row(asm: Assembly, files: list[Path]) -> dict:
         "assembly_status": ai.get("assembly_status", ""),
         "organism_name": org.get("organism_name", ""),
         "tax_id": org.get("tax_id", ""),
-        "strain": org.get("infraspecific_names", {}).get("strain", ""),
-        "biosample": ai.get("biosample", {}).get("accession", ""),
+        "strain": (org.get("infraspecific_names") or {}).get("strain", ""),
+        "biosample": (ai.get("biosample") or {}).get("accession", ""),
         "bioproject": ai.get("bioproject_accession", ""),
         "submitter": ai.get("submitter", ""),
         "release_date": ai.get("release_date", ""),
@@ -136,6 +141,8 @@ def make_session(
         # streams bytes from a host with no rps ceiling, so it opts out.
         rps = DATASETS_RATE_LIMIT_WITH_KEY if api_key else DATASETS_RATE_LIMIT
         session.rate_limiter = _RateLimiter(rps)
+    # Attempts for the application-level stream-drop retry in ``_request``.
+    session.max_attempts = max_attempts if retries else 1
     return session
 
 
@@ -145,20 +152,37 @@ def _base_of(accession: str) -> str:
 
 
 def _request(session, method, url, context, **kwargs):
-    """Perform an HTTP request, converting failures into ApiError."""
+    """Perform an HTTP request, converting failures into ApiError.
+
+    The HTTPAdapter's Retry covers connection failures and retryable status
+    codes, but a response interrupted mid-body (ChunkedEncodingError, "Response
+    ended prematurely") surfaces only when the non-streamed body is read and is
+    not covered by that adapter, so it is retried here.
+    """
     limiter = getattr(session, "rate_limiter", None)
-    if limiter is not None:
-        limiter.acquire()
-    try:
-        resp = session.request(method, url, **kwargs)
-    except requests.RequestException as err:
-        raise ApiError(f"Datasets API request failed for {context}: {err}") from err
-    if not resp.ok:
-        raise ApiError(
-            f"Datasets API returned {resp.status_code} for {context}",
-            status_code=resp.status_code,
-        )
-    return resp
+    attempts = getattr(session, "max_attempts", 1) or 1
+    for attempt in range(1, attempts + 1):
+        if limiter is not None:
+            limiter.acquire()
+        try:
+            resp = session.request(method, url, **kwargs)
+        except requests.exceptions.ChunkedEncodingError as err:
+            if attempt < attempts:
+                logging.debug(
+                    f"Retry {attempt}/{attempts} for {context} after "
+                    f"interrupted response stream: {err}"
+                )
+                time.sleep(_STREAM_RETRY_BACKOFF * attempt)
+                continue
+            raise ApiError(f"Datasets API request failed for {context}: {err}") from err
+        except requests.RequestException as err:
+            raise ApiError(f"Datasets API request failed for {context}: {err}") from err
+        if not resp.ok:
+            raise ApiError(
+                f"Datasets API returned {resp.status_code} for {context}",
+                status_code=resp.status_code,
+            )
+        return resp
 
 
 def resolve_accessions(
@@ -175,32 +199,36 @@ def resolve_accessions(
         Mapping of base accession -> {version_int: Assembly}.
     """
     url = f"{DATASETS_API}/genome/dataset_report"
-    body = {
-        "accessions": bases,
-        "filters": {"assembly_version": "all_assemblies"},
-        "page_size": 1000,
-    }
     grouped: dict[str, dict[int, Assembly]] = {}
-    page_token = None
-    while True:
-        payload = dict(body)
-        if page_token:
-            payload["page_token"] = page_token
-        resp = _request(session, "POST", url, "accession report", json=payload)
-        data = resp.json()
-        for report in data.get("reports", []) or []:
-            accession = report.get("accession")
-            if not accession:
-                continue
-            base = _base_of(accession)
-            try:
-                version = int(accession.split(".")[1])
-            except (IndexError, ValueError):
-                continue
-            grouped.setdefault(base, {})[version] = _assembly_from_report(report)
-        page_token = data.get("next_page_token")
-        if not page_token:
-            break
+    # Chunk bases so a large --accessions file does not produce one oversized
+    # POST body that NCBI may reject.
+    for start in range(0, len(bases), ACCESSION_BATCH_SIZE):
+        batch = bases[start : start + ACCESSION_BATCH_SIZE]
+        body = {
+            "accessions": batch,
+            "filters": {"assembly_version": "all_assemblies"},
+            "page_size": 1000,
+        }
+        page_token = None
+        while True:
+            payload = dict(body)
+            if page_token:
+                payload["page_token"] = page_token
+            resp = _request(session, "POST", url, "accession report", json=payload)
+            data = resp.json()
+            for report in data.get("reports", []) or []:
+                accession = report.get("accession")
+                if not accession:
+                    continue
+                base = _base_of(accession)
+                try:
+                    version = int(accession.split(".")[1])
+                except (IndexError, ValueError):
+                    continue
+                grouped.setdefault(base, {})[version] = _assembly_from_report(report)
+            page_token = data.get("next_page_token")
+            if not page_token:
+                break
     return grouped
 
 
@@ -246,7 +274,7 @@ def verify_taxon(session: requests.Session, name: str) -> dict:
         TaxonError: If the name is not a recognized NCBI Taxonomy name.
         ApiError: If the API request fails.
     """
-    url = f"{DATASETS_API}/taxonomy/taxon/{quote(name)}/dataset_report"
+    url = f"{DATASETS_API}/taxonomy/taxon/{quote(name, safe='')}/dataset_report"
     resp = _request(session, "GET", url, "taxonomy report")
     data = resp.json()
     reports = data.get("reports") or []
@@ -259,7 +287,7 @@ def verify_taxon(session: requests.Session, name: str) -> dict:
     return {
         "tax_id": taxonomy.get("tax_id"),
         "rank": taxonomy.get("rank"),
-        "name": taxonomy.get("current_scientific_name", {}).get("name", name),
+        "name": (taxonomy.get("current_scientific_name") or {}).get("name", name),
     }
 
 
@@ -272,14 +300,12 @@ def list_taxon_assemblies(
         EmptyResultError: If the taxon has no assemblies for the filters.
         ApiError: If the API request fails.
     """
-    url = f"{DATASETS_API}/genome/taxon/{quote(name)}/dataset_report"
+    url = f"{DATASETS_API}/genome/taxon/{quote(name, safe='')}/dataset_report"
     params = {"page_size": 1000}
     if source != "all":
         params["filters.assembly_source"] = source
     if levels != ["all"]:
-        params["filters.assembly_level"] = ",".join(
-            ASSEMBLY_LEVELS[level] for level in levels
-        )
+        params["filters.assembly_level"] = [ASSEMBLY_LEVELS[level] for level in levels]
 
     assemblies: list[Assembly] = []
     page_token = None

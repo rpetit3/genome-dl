@@ -97,7 +97,7 @@ class TestDownloadAssembly:
         )
         session = make_session(3, None)
         download_session = make_session(3, None, retries=False)
-        written, _ = download_assembly(
+        written, _, _ = download_assembly(
             session,
             download_session,
             make_assembly(),
@@ -137,7 +137,7 @@ class TestDownloadAssembly:
         )
         session = make_session(3, None)
         download_session = make_session(3, None, retries=False)
-        written, _ = download_assembly(
+        written, _, _ = download_assembly(
             session,
             download_session,
             make_assembly(),
@@ -167,7 +167,7 @@ class TestDownloadAssembly:
         )
         session = make_session(3, None)
         download_session = make_session(3, None, retries=False)
-        written, unavailable = download_assembly(
+        written, unavailable, _ = download_assembly(
             session,
             download_session,
             make_assembly(),
@@ -226,7 +226,7 @@ class TestDownloadAssembly:
         )
         session = make_session(3, None)
         download_session = make_session(3, None, retries=False)
-        written, unavailable = download_assembly(
+        written, unavailable, _ = download_assembly(
             session,
             download_session,
             make_assembly(),
@@ -305,7 +305,7 @@ class TestDownloadAssembly:
         )
         session = make_session(3, None)
         download_session = make_session(3, None, retries=False)
-        written, unavailable = download_assembly(
+        written, unavailable, _ = download_assembly(
             session,
             download_session,
             asm,
@@ -320,3 +320,104 @@ class TestDownloadAssembly:
         assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
         assert unavailable == []
         assert (tmp_path / "GCF_000005845.2.fna.gz").read_bytes() == fna
+
+
+class TestPartialAndTruncation:
+    @responses.activate
+    def test_truncated_download_detected_even_when_md5_ignored(self, tmp_path):
+        # Content-Length says 1000 but only a few bytes arrive; with --ignore
+        # (no md5) the completeness check is the only guard against truncation.
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body="deadbeef  ./GCF_000005845.2_ASM584v2_genomic.fna.gz\n",
+        )
+        responses.add(
+            responses.GET,
+            f"{DIR}GCF_000005845.2_ASM584v2_genomic.fna.gz",
+            body=b"SHORT",
+            headers={"Content-Length": "1000"},
+        )
+        session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
+        with pytest.raises(DownloadError):
+            download_assembly(
+                session,
+                download_session,
+                make_assembly(),
+                ["fasta"],
+                tmp_path,
+                FTP_BASE,
+                force=False,
+                ignore_md5=True,
+                max_attempts=2,
+                sleep=0,
+            )
+        assert not (tmp_path / "GCF_000005845.2.fna.gz").exists()
+
+    @responses.activate
+    def test_partial_format_failure_keeps_written(self, tmp_path):
+        # fasta downloads; gff is in the manifest but its download 404s.
+        # The good fasta must be kept and the assembly reported as partial.
+        fna = b"FASTA"
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body=(
+                f"{_md5(fna)}  ./GCF_000005845.2_ASM584v2_genomic.fna.gz\n"
+                f"deadbeef  ./GCF_000005845.2_ASM584v2_genomic.gff.gz\n"
+            ),
+        )
+        responses.add(
+            responses.GET,
+            f"{DIR}GCF_000005845.2_ASM584v2_genomic.fna.gz",
+            body=fna,
+        )
+        responses.add(
+            responses.GET,
+            f"{DIR}GCF_000005845.2_ASM584v2_genomic.gff.gz",
+            status=404,
+        )
+        session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
+        written, unavailable, failed = download_assembly(
+            session,
+            download_session,
+            make_assembly(),
+            ["fasta", "gff"],
+            tmp_path,
+            FTP_BASE,
+            force=False,
+            ignore_md5=False,
+            max_attempts=2,
+            sleep=0,
+        )
+        assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
+        assert unavailable == []
+        assert failed == ["gff"]
+        assert (tmp_path / "GCF_000005845.2.fna.gz").read_bytes() == fna
+
+    @responses.activate
+    def test_zero_files_all_unavailable_raises(self, tmp_path):
+        # Requesting only a format absent from the manifest yields zero files,
+        # which must be a failure rather than a silent exit-0 success.
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body="abc  ./GCF_000005845.2_ASM584v2_genomic.fna.gz\n",
+        )
+        session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
+        with pytest.raises(DownloadError):
+            download_assembly(
+                session,
+                download_session,
+                make_assembly(),
+                ["gff"],  # not in the manifest
+                tmp_path,
+                FTP_BASE,
+                force=False,
+                ignore_md5=False,
+                max_attempts=2,
+                sleep=0,
+            )

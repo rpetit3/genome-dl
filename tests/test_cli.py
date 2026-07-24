@@ -46,7 +46,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
@@ -64,7 +66,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
@@ -84,7 +88,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         result = CliRunner().invoke(
             genomedl,
@@ -104,7 +110,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         result = CliRunner().invoke(
             genomedl,
@@ -132,7 +140,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         result = CliRunner().invoke(
             genomedl,
@@ -203,7 +213,9 @@ class TestExitCodes:
         )
         mocker.patch(
             "genome_dl.cli.download.download_assembly",
-            return_value=AssemblyDownload([tmp_path / "GCF_000005845.2.fna.gz"], []),
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
         )
         acc_file = tmp_path / "accs.txt"
         acc_file.write_text("GCF_000005845.2\nGCF_000715355.1\n")
@@ -247,7 +259,7 @@ class TestExitCodes:
         def fake_download(*args, **kwargs):
             asm = args[2]
             downloaded.append(asm.accession)
-            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [])
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [], [])
 
         mocker.patch(
             "genome_dl.cli.download.download_assembly", side_effect=fake_download
@@ -284,7 +296,7 @@ class TestExitCodes:
         def fake_download(*args, **kwargs):
             asm = args[2]
             calls.append(asm.accession)
-            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [])
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [], [])
 
         mocker.patch(
             "genome_dl.cli.download.download_assembly", side_effect=fake_download
@@ -316,5 +328,38 @@ class TestExitCodes:
         )
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
+        )
+        assert result.exit_code == 1
+
+    def test_unexpected_error_recorded_not_crash(self, mocker, tmp_path):
+        # A non-DownloadError (e.g. OSError: disk full) from one assembly must
+        # be recorded as a failure and exit 1, not crash the whole run.
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            side_effect=OSError("No space left on device"),
+        )
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
+        )
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+
+    def test_prefix_path_traversal_rejected(self, mocker, tmp_path):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl,
+            [
+                "--accession",
+                "GCF_000005845.2",
+                "-o",
+                str(tmp_path),
+                "--prefix",
+                "../evil",
+            ],
         )
         assert result.exit_code == 1

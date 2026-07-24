@@ -10,6 +10,10 @@ FTP_BASE = "https://ftp.ncbi.nlm.nih.gov/genomes"
 DATASETS_RATE_LIMIT = 5
 DATASETS_RATE_LIMIT_WITH_KEY = 10
 
+# Max accession bases per dataset_report POST body. Large --accessions files are
+# chunked into batches of this size so a single oversized request is not sent.
+ACCESSION_BATCH_SIZE = 1000
+
 # Output naming
 METADATA_SUFFIX = "-metadata.tsv"
 SUMMARY_SUFFIX = "-summary.txt"

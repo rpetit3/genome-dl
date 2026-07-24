@@ -26,6 +26,7 @@ class AssemblyDownload(NamedTuple):
 
     files: list[Path]
     unavailable: list[str]
+    failed: list[str]
 
 
 def _sanitize(assembly_name: str) -> str:
@@ -131,13 +132,20 @@ def _download_file(
                 total = int(resp.headers.get("Content-Length", 0)) or None
                 if progress is not None:
                     task_id = progress.add_task(label, total=total)
+                bytes_written = 0
                 with open(part, "wb") as fh:
                     for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
                         if not chunk:
                             continue
                         fh.write(chunk)
+                        bytes_written += len(chunk)
                         if progress is not None:
                             progress.update(task_id, advance=len(chunk))
+            # Verify completeness even when md5 is skipped (--ignore): a
+            # truncated-but-clean stream would otherwise be saved as success.
+            if total is not None and bytes_written != total:
+                last_error = f"incomplete download ({bytes_written} of {total} bytes)"
+                raise DownloadError(last_error)
             if expected_md5 is not None:
                 actual = md5sum(part)
                 if actual != expected_md5:
@@ -145,7 +153,7 @@ def _download_file(
                     raise DownloadError(last_error)
             part.replace(target)
             return
-        except (requests.RequestException, DownloadError) as err:
+        except (requests.RequestException, DownloadError, OSError) as err:
             last_error = str(err)
             part.unlink(missing_ok=True)
             if attempt < max_attempts:
@@ -175,8 +183,10 @@ def download_assembly(
 ) -> AssemblyDownload:
     """Download the requested formats for one assembly to ``{accession}.{ext}``.
 
-    Returns an ``AssemblyDownload`` with the written file paths and the
-    requested formats that were unavailable. Raises DownloadError on failure.
+    Returns an ``AssemblyDownload`` with the written file paths, the requested
+    formats that were unavailable (absent from the manifest), and the formats
+    that errored. Files from successful formats are kept even if others fail;
+    DownloadError is raised only when the assembly yields zero files.
     """
     dir_url, md5s = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
     # Derive the file-name stem from the resolved directory (``{accession}_{stem}``)
@@ -186,6 +196,7 @@ def download_assembly(
 
     written: list[Path] = []
     unavailable: list[str] = []
+    failed: list[str] = []
     for fmt in formats:
         suffix, ext = FORMATS[fmt]
         src = f"{stem}{suffix}"
@@ -206,16 +217,38 @@ def download_assembly(
             written.append(target)
             continue
 
-        _download_file(
-            download_session,
-            f"{dir_url}{src}",
-            target,
-            verify,
-            max_attempts,
-            sleep,
-            progress,
-            f"{asm.accession}.{ext}",
-        )
+        try:
+            _download_file(
+                download_session,
+                f"{dir_url}{src}",
+                target,
+                verify,
+                max_attempts,
+                sleep,
+                progress,
+                f"{asm.accession}.{ext}",
+            )
+        except DownloadError as err:
+            # Keep other formats' files; record this format as failed so the
+            # assembly can still be reported as a partial success.
+            logging.warning(f"{asm.accession}: {fmt} failed: {err}")
+            failed.append(fmt)
+            continue
         written.append(target)
 
-    return AssemblyDownload(written, unavailable)
+    # A resolved assembly that yields zero files is a failure, not a silent
+    # success -- otherwise the run exits 0 with an empty metadata row.
+    if not written and (failed or unavailable):
+        if failed:
+            raise DownloadError(
+                f"all requested formats failed for {asm.accession}: "
+                f"{', '.join(failed)}",
+                accession=asm.accession,
+            )
+        raise DownloadError(
+            f"no requested formats available for {asm.accession}: "
+            f"{', '.join(unavailable)}",
+            accession=asm.accession,
+        )
+
+    return AssemblyDownload(written, unavailable, failed)

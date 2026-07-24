@@ -29,7 +29,7 @@ def test_current_accession_downloads(session, tmp_path):
     resolved = resolve_accessions(session, ["GCF_000005845"])
     asm, action = select_for_input("GCF_000005845", 2, resolved["GCF_000005845"])
     assert action == "selected"
-    written, _ = download_assembly(
+    written, _, _ = download_assembly(
         session,
         make_session(5, None, retries=False),
         asm,
