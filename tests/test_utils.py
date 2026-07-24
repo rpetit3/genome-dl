@@ -65,6 +65,14 @@ class TestReadAccessions:
         with pytest.raises(ValidationError):
             read_accessions(str(tmp_path / "does-not-exist.txt"))
 
+    def test_binary_file_raises_validationerror(self, tmp_path):
+        # A non-UTF-8 file (e.g. an accidental .gz) must raise a clean
+        # ValidationError, not a raw UnicodeDecodeError traceback.
+        f = tmp_path / "acc.gz"
+        f.write_bytes(b"\x1f\x8b\x08\x00\xff\xfe\xfd")
+        with pytest.raises(ValidationError):
+            read_accessions(str(f))
+
 
 class TestMd5sum:
     def test_matches_known_value(self, tmp_path):

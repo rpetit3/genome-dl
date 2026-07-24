@@ -163,6 +163,36 @@ class TestResolveAccessions:
         with pytest.raises(ApiError):
             resolve_accessions(session, ["GCF_000005845"])
 
+    @responses.activate
+    def test_api_error_surfaces_message_without_leaking_key(self):
+        # NCBI's 4xx JSON body carries a human message and echoes the submitted
+        # api-key; the ApiError must surface the message but never the key.
+        responses.add(
+            responses.POST,
+            f"{DATASETS_API}/genome/dataset_report",
+            status=400,
+            json={"error": {"message": "API key invalid", "api-key": "SECRET123"}},
+        )
+        session = make_session(0, None)
+        with pytest.raises(ApiError) as excinfo:
+            resolve_accessions(session, ["GCF_000005845"])
+        assert "API key invalid" in str(excinfo.value)
+        assert "SECRET123" not in str(excinfo.value)
+
+    @responses.activate
+    def test_connection_error_gives_network_hint(self):
+        # An unreachable API (offline / bad proxy / DNS) must surface a clean
+        # network hint, not a wall of raw urllib3 connection-pool text.
+        responses.add(
+            responses.POST,
+            f"{DATASETS_API}/genome/dataset_report",
+            body=requests.exceptions.ConnectionError("Max retries exceeded"),
+        )
+        session = make_session(0, None)
+        with pytest.raises(ApiError) as excinfo:
+            resolve_accessions(session, ["GCF_000005845"])
+        assert "check your network connection" in str(excinfo.value)
+
 
 class TestVerifyTaxon:
     @responses.activate

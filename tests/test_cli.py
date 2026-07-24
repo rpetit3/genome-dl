@@ -1,13 +1,20 @@
 """Tests for the genome-dl CLI."""
 
 import json
+import os
 import threading
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from genome_dl.cli.download import _execute_downloads, genomedl
+from genome_dl.cli.download import (
+    _execute_downloads,
+    _parse_formats,
+    _parse_levels,
+    genomedl,
+)
+from genome_dl.constants import FORMATS
 from genome_dl.exceptions import DownloadError
 from genome_dl.providers.ftp import AssemblyDownload
 from tests.conftest import make_assembly
@@ -35,6 +42,50 @@ class TestInputValidation:
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "--formats", "bogus"]
         )
+        assert result.exit_code == 1
+
+    def test_empty_accessions_file_exits_one(self, mocker, tmp_path):
+        _patch_common(mocker)
+        f = tmp_path / "empty.txt"
+        f.write_text("# only a comment\n\n")
+        result = CliRunner().invoke(
+            genomedl, ["--accessions", str(f), "-o", str(tmp_path)]
+        )
+        assert result.exit_code == 1
+
+    def test_invalid_accession_message_hints_format(self, mocker, tmp_path, caplog):
+        _patch_common(mocker)
+        f = tmp_path / "list.txt"
+        f.write_text("GCF_000005845.2 GCF_000008865.2\n")  # two on one line
+        with caplog.at_level("ERROR"):
+            result = CliRunner().invoke(
+                genomedl,
+                ["--accessions", str(f), "-o", str(tmp_path), "--dry-run"],
+            )
+        assert result.exit_code == 2  # all tokens invalid -> AccessionNotFoundError
+        assert "one accession per line" in caplog.text
+
+    def test_species_whitespace_stripped(self, mocker, tmp_path):
+        _patch_common(mocker)
+        vt = mocker.patch(
+            "genome_dl.cli.download.verify_taxon",
+            return_value={"name": "Escherichia coli", "tax_id": 562},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.list_taxon_assemblies",
+            return_value=([make_assembly()], 1),
+        )
+        result = CliRunner().invoke(
+            genomedl,
+            ["--species", "  Escherichia coli  ", "-o", str(tmp_path), "--dry-run"],
+        )
+        assert result.exit_code == 0
+        # the stripped taxon name is what reaches the API layer
+        assert vt.call_args.args[1] == "Escherichia coli"
+
+    def test_species_all_whitespace_exits_one(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(genomedl, ["--species", "   "])
         assert result.exit_code == 1
 
 
@@ -539,7 +590,7 @@ class TestOptionBounds:
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "--cpus", "0"]
         )
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
     def test_high_cpus_warns(self, mocker, tmp_path, caplog):
         _patch_common(mocker)
@@ -586,21 +637,28 @@ class TestOptionBounds:
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "--max-attempts", "0"]
         )
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
     def test_sleep_negative_rejected(self, mocker):
         _patch_common(mocker)
         result = CliRunner().invoke(
             genomedl, ["--accession", "GCF_000005845.2", "--sleep=-5"]
         )
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
     def test_limit_negative_rejected(self, mocker):
         _patch_common(mocker)
         result = CliRunner().invoke(
             genomedl, ["--species", "Escherichia coli", "--limit=-1"]
         )
-        assert result.exit_code == 2
+        assert result.exit_code == 1
+
+    def test_bad_section_exits_one(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--species", "Escherichia coli", "--section", "bogus"]
+        )
+        assert result.exit_code == 1
 
     def test_outdir_is_file_exits_one(self, mocker, tmp_path):
         _patch_common(mocker)
@@ -611,3 +669,89 @@ class TestOptionBounds:
             ["--accession", "GCF_000005845.2", "--outdir", str(target)],
         )
         assert result.exit_code == 1
+
+
+class TestParseHelpers:
+    def test_formats_all_with_extra_returns_all(self):
+        # "all" anywhere in the list wins, instead of a self-contradictory
+        # "unknown format 'all'; ... or all" error.
+        assert _parse_formats("all,fasta") == list(FORMATS)
+
+    def test_levels_all_with_extra_returns_all(self):
+        assert _parse_levels("all,complete") == ["all"]
+
+    def test_formats_case_insensitive(self):
+        assert _parse_formats("FASTA,GFF") == ["fasta", "gff"]
+
+    def test_levels_case_insensitive(self):
+        assert _parse_levels("Complete,CONTIG") == ["complete", "contig"]
+
+    def test_formats_deduplicated_preserving_order(self):
+        # A duplicate format must not double-list the file in the metadata.
+        assert _parse_formats("fasta,gff,fasta") == ["fasta", "gff"]
+
+
+class TestFilesystemOptions:
+    def test_outdir_tilde_expanded(self, mocker, tmp_path, monkeypatch):
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        result = CliRunner().invoke(
+            genomedl,
+            ["--accession", "GCF_000005845.2", "--outdir", "~/sub", "--dry-run"],
+        )
+        assert result.exit_code == 0
+        assert (tmp_path / "sub").is_dir()
+
+    def test_prefix_whitespace_only_rejected(self, mocker):
+        _patch_common(mocker)
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "--prefix", "   "]
+        )
+        assert result.exit_code == 1
+
+    def test_unwritable_outdir_exits_one(self, mocker, tmp_path):
+        if os.getuid() == 0:
+            pytest.skip("root bypasses filesystem write permissions")
+        _patch_common(mocker)
+        ro = tmp_path / "ro"
+        ro.mkdir()
+        ro.chmod(0o555)
+        try:
+            result = CliRunner().invoke(
+                genomedl, ["--accession", "GCF_000005845.2", "--outdir", str(ro)]
+            )
+            assert result.exit_code == 1
+        finally:
+            ro.chmod(0o755)
+
+    def test_output_write_failure_is_clean(self, mocker, tmp_path):
+        # outdir is writable (upfront gate passes) but a pre-existing output
+        # file is read-only: the late write must fail cleanly, not traceback.
+        if os.getuid() == 0:
+            pytest.skip("root bypasses filesystem write permissions")
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
+        )
+        summary = tmp_path / "genome-dl-summary.txt"
+        summary.write_text("stale")
+        summary.chmod(0o444)
+        try:
+            result = CliRunner().invoke(
+                genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
+            )
+            assert result.exit_code == 1
+            assert result.exception is None or isinstance(result.exception, SystemExit)
+        finally:
+            summary.chmod(0o644)

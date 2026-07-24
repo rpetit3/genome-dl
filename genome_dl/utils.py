@@ -82,6 +82,11 @@ def read_accessions(path: PathLike) -> list[str]:
                 if not stripped or stripped.startswith("#"):
                     continue
                 accessions.append(stripped)
+    except UnicodeDecodeError as err:
+        raise ValidationError(
+            f"accessions file {path!r} is not valid UTF-8 text "
+            f"(is it a binary or compressed file?): {err}"
+        ) from err
     except OSError as err:
         raise ValidationError(f"cannot read accessions file {path!r}: {err}") from err
     return accessions

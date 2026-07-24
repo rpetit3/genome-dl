@@ -229,6 +229,54 @@ Live facts confirmed this round (reuse instead of re-deriving):
 - `total_count` is returned on the first page, so first-X can report the full
   population size while fetching only N.
 
+### Dogfooding round 1 — (commit pending)
+Not a review — the adversarial input/error-message pass described in "Next
+session" below. Ran the real CLI (`genome-dl` in the `genome-dl` conda env)
+against the mistakes users actually make; graded each on "does the message say
+what's wrong AND what to do?" + exit-code contract. **14 defects found & fixed,
+each with a regression test** (100 -> 117 unit tests; 9 integration still pass;
+ruff clean). Scope was input-boundary + live-NCBI natural failures (no fault
+injection, no Bactopia — the drop-in module still calls ngd, so R5's variable-
+column TSV has no downstream consumer today).
+- **Exit-code unification:** click `UsageError` (bad `--section`/`--cpus`/
+  `--sleep`/`--limit`/`--max-attempts`) defaulted to exit 2, colliding with the
+  "not found" bucket. `click.exceptions.UsageError.exit_code = 1` at module load
+  (rich_click still renders its panel; our own `sys.exit(2)` for not-found is
+  untouched). Flipped 4 existing tests 2->1.
+- **Two silent-success / crash landmines:** empty-or-all-comment `--accessions`
+  file exited 0 with nothing downloaded (now `ValidationError`, exit 1); a
+  non-UTF-8/binary `--accessions` file (e.g. an accidental `.gz`) dumped a raw
+  `UnicodeDecodeError` traceback (`read_accessions` caught only `OSError`; now
+  also `UnicodeDecodeError` -> `ValidationError`).
+- **Filesystem, fail-fast:** unwritable outdir tracebacked from
+  `_write_run_outputs` AFTER wasting the whole download (mkdir `exist_ok=True`
+  hid it). Now `os.access(outdir, os.W_OK)` gate in the EARLY validation block
+  (before session setup / dry-run banner / network) -> exit 1. Belt-and-braces:
+  `_write_run_outputs` writes now wrapped (`except OSError -> GenomeDLError`) so
+  a late disk-full / read-only pre-existing output file also fails clean.
+  `--outdir ~/x` now `expanduser()`s (was making a literal `~` dir).
+- **API/network messages:** a 4xx now surfaces NCBI's `error.message` (e.g.
+  "API key invalid") WITHOUT leaking the api-key NCBI echoes in the body;
+  `ConnectionError` (offline/proxy/DNS) gives "could not connect ...; check your
+  network connection" instead of a urllib3 wall.
+- **Forgiveness / UX:** `--formats`/`--assembly-level` now case-insensitive
+  (`FASTA` ok, matching `--section`) and de-duplicated (no double-listed file in
+  metadata); `--formats all,fasta` treats any `all` as all (was a self-
+  contradictory "unknown format 'all' ... or all"); `--species`/`--accession`
+  leading/trailing whitespace stripped; whitespace-only `--prefix` rejected;
+  improved invalid-accession message (shows `GCF_/GCA_` shape + "one per line").
+- **Verified already-solid (no change):** Ctrl-C mid-download (exit 130, clean
+  "cancelling/press-again" message, no leftover `.part`, completed files kept);
+  `--json` on partial failure (valid JSON, exit 3); `--progress` in a non-TTY
+  (no bar artifacts); `--force` re-download; empty-result message; species<->
+  accession confusion messages.
+- **Convergence:** severity decayed R1(silent-corruption)->R2(one crash+papercuts)
+  ->R3(UX polish + one crash). Remaining untested surface is fault injection
+  (md5 mismatch, truncated stream, 5xx) which users can't easily trigger and the
+  `responses`-mocked `test_providers_*` layer already covers. The user-mistake
+  boundary is considered hardened; next dogfood session (if any) should be
+  fault-injection or the deferred format-mapping items, in fresh context.
+
 
 ## Deferred / known (raise only if you think they now matter)
 

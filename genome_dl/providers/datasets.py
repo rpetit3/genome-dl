@@ -198,11 +198,27 @@ def _request_json(session, method, url, context, **kwargs) -> dict:
                 time.sleep(_STREAM_RETRY_BACKOFF * attempt)
                 continue
             raise ApiError(f"Datasets API request failed for {context}: {err}") from err
+        except requests.exceptions.ConnectionError as err:
+            raise ApiError(
+                f"could not connect to the NCBI Datasets API for {context}; "
+                f"check your network connection ({type(err).__name__})"
+            ) from err
         except requests.RequestException as err:
             raise ApiError(f"Datasets API request failed for {context}: {err}") from err
         if not resp.ok:
+            detail = ""
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            # Surface only the API's error message, never the raw body: NCBI
+            # echoes the submitted api-key in the error object.
+            if isinstance(body, dict) and isinstance(body.get("error"), dict):
+                message = body["error"].get("message")
+                if message:
+                    detail = f": {message}"
             raise ApiError(
-                f"Datasets API returned {resp.status_code} for {context}",
+                f"Datasets API returned {resp.status_code} for {context}{detail}",
                 status_code=resp.status_code,
             )
         try:

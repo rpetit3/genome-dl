@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T14:49:32.681988+00:00",
+  "generated_at": "2026-07-24T16:28:06.512942+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -122,7 +122,7 @@
             }
           ],
           "returns": null,
-          "lineno": 212
+          "lineno": 221
         },
         "_write_summary": {
           "name": "_write_summary",
@@ -150,7 +150,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 307
+          "lineno": 316
         },
         "_assembly_json": {
           "name": "_assembly_json",
@@ -165,7 +165,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 333
+          "lineno": 342
         },
         "_build_report": {
           "name": "_build_report",
@@ -193,7 +193,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 340
+          "lineno": 349
         },
         "_emit_json": {
           "name": "_emit_json",
@@ -205,7 +205,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 362
+          "lineno": 371
         },
         "_parse_formats": {
           "name": "_parse_formats",
@@ -217,7 +217,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 367
+          "lineno": 376
         },
         "_parse_levels": {
           "name": "_parse_levels",
@@ -229,7 +229,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 382
+          "lineno": 391
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -252,7 +252,7 @@
             }
           ],
           "returns": null,
-          "lineno": 400
+          "lineno": 411
         },
         "_log_asm_result": {
           "name": "_log_asm_result",
@@ -274,7 +274,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 477
+          "lineno": 497
         },
         "_execute_downloads": {
           "name": "_execute_downloads",
@@ -318,7 +318,7 @@
             }
           ],
           "returns": null,
-          "lineno": 494
+          "lineno": 514
         },
         "_write_run_outputs": {
           "name": "_write_run_outputs",
@@ -347,7 +347,7 @@
             }
           ],
           "returns": null,
-          "lineno": 581
+          "lineno": 601
         },
         "_run_download": {
           "name": "_run_download",
@@ -441,14 +441,14 @@
             }
           ],
           "returns": null,
-          "lineno": 618
+          "lineno": 641
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 823
+          "lineno": 852
         }
       },
       "classes": {},
@@ -782,7 +782,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 216
+          "lineno": 232
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -807,7 +807,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 262
+          "lineno": 278
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -823,7 +823,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 302
+          "lineno": 318
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -852,7 +852,7 @@
             }
           ],
           "returns": "tuple[list[Assembly], int]",
-          "lineno": 327
+          "lineno": 343
         }
       },
       "classes": {
@@ -1137,7 +1137,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 90
+          "lineno": 95
         },
         "write_json": {
           "name": "write_json",
@@ -1155,7 +1155,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 113
+          "lineno": 118
         }
       },
       "classes": {},

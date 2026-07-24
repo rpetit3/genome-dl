@@ -51,6 +51,15 @@ from genome_dl.providers.datasets import (
 from genome_dl.providers.ftp import download_assembly
 from genome_dl.utils import parse_accession, read_accessions, write_json, write_tsv
 
+# Unify the exit-code contract: click raises UsageError (bad option value,
+# unknown option, missing argument) with exit_code 2 by default, which collides
+# with genome-dl's "2 = not found / empty / bad taxon". Invalid CLI input is a
+# validation error, so remap every click usage error to exit 1 to match the
+# ValidationError path. rich_click still renders its error panel; only the code
+# changes. genome-dl's own sys.exit(2) for not-found never flows through this
+# branch, so it is unaffected.
+click.exceptions.UsageError.exit_code = 1
+
 # Shared stderr console so log lines and the live progress display coordinate
 # instead of clobbering each other.
 CONSOLE = Console(stderr=True)
@@ -366,27 +375,29 @@ def _emit_json(report: dict) -> None:
 
 def _parse_formats(formats: str) -> list[str]:
     """Parse and validate the --formats option into a list of keys."""
-    values = [f.strip() for f in formats.split(",") if f.strip()]
+    values = [f.strip().lower() for f in formats.split(",") if f.strip()]
     if not values:
         raise ValidationError("no formats given; --formats must not be empty")
-    if values == ["all"]:
+    if "all" in values:
         return list(FORMATS)
     for value in values:
         if value not in FORMATS:
             raise ValidationError(
                 f"unknown format {value!r}; choose from {', '.join(FORMATS)} or all"
             )
-    return values
+    return list(dict.fromkeys(values))
 
 
 def _parse_levels(assembly_level: str) -> list[str]:
     """Parse and validate the --assembly-level option into a list of keys."""
-    values = [level.strip() for level in assembly_level.split(",") if level.strip()]
+    values = [
+        level.strip().lower() for level in assembly_level.split(",") if level.strip()
+    ]
     if not values:
         raise ValidationError(
             "no assembly levels given; --assembly-level must not be empty"
         )
-    if values == ["all"]:
+    if "all" in values:
         return ["all"]
     for value in values:
         if value not in ASSEMBLY_LEVELS:
@@ -394,7 +405,7 @@ def _parse_levels(assembly_level: str) -> list[str]:
                 f"unknown assembly level {value!r}; choose from "
                 f"{', '.join(ASSEMBLY_LEVELS)} or all"
             )
-    return values
+    return list(dict.fromkeys(values))
 
 
 def _resolve_targets(session, accession, accessions, failures, allow_outdated):
@@ -403,6 +414,11 @@ def _resolve_targets(session, accession, accessions, failures, allow_outdated):
         tokens = [accession]
     else:
         tokens = read_accessions(accessions)
+        if not tokens:
+            raise ValidationError(
+                f"no accessions found in {accessions!r}: the file is empty or "
+                "contains only blank/comment lines"
+            )
 
     parsed = {}
     for token in tokens:
@@ -410,7 +426,11 @@ def _resolve_targets(session, accession, accessions, failures, allow_outdated):
             base, version = parse_accession(token)
             parsed[token] = (base, version)
         except ValidationError:
-            logging.error(f"{token} is not a valid accession")
+            logging.error(
+                f"{token!r} is not a valid accession "
+                "(expected e.g. GCF_000005845.2 or GCA_000005845; "
+                "one accession per line)"
+            )
             failures[token] = "invalid"
 
     if not parsed:
@@ -588,29 +608,32 @@ def _write_run_outputs(
     emit_json,
 ):
     """Write metadata TSV, run summary, and JSON report; optionally emit JSON."""
-    if successful:
-        rows = [metadata_row(asm, files) for asm, files in successful]
-        # Dynamic infraspecific columns (isolate, cultivar, ...) present in this
-        # run, inserted right after the fixed 'strain' column.
-        extra = sorted({k for row in rows for k in row} - set(METADATA_COLUMNS))
-        if extra:
-            at = METADATA_COLUMNS.index("strain") + 1
-            columns = METADATA_COLUMNS[:at] + extra + METADATA_COLUMNS[at:]
-        else:
-            columns = METADATA_COLUMNS
-        tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
-        write_tsv(rows, str(tsv_path), columns)
-        logging.info(f"Wrote metadata to {tsv_path}")
+    try:
+        if successful:
+            rows = [metadata_row(asm, files) for asm, files in successful]
+            # Dynamic infraspecific columns (isolate, cultivar, ...) present in
+            # this run, inserted right after the fixed 'strain' column.
+            extra = sorted({k for row in rows for k in row} - set(METADATA_COLUMNS))
+            if extra:
+                at = METADATA_COLUMNS.index("strain") + 1
+                columns = METADATA_COLUMNS[:at] + extra + METADATA_COLUMNS[at:]
+            else:
+                columns = METADATA_COLUMNS
+            tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
+            write_tsv(rows, str(tsv_path), columns)
+            logging.info(f"Wrote metadata to {tsv_path}")
 
-    summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
-    _write_summary(summary_path, summary_params, len(successful), failures, run_at)
-    logging.info(f"Wrote run summary to {summary_path}")
+        summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
+        _write_summary(summary_path, summary_params, len(successful), failures, run_at)
+        logging.info(f"Wrote run summary to {summary_path}")
 
-    json_path = outdir / f"{prefix}{JSON_SUFFIX}"
-    assemblies = [_assembly_json(asm, files) for asm, files in successful]
-    report = _build_report(summary_params, assemblies, failures, False, run_at)
-    write_json(report, str(json_path))
-    logging.info(f"Wrote JSON report to {json_path}")
+        json_path = outdir / f"{prefix}{JSON_SUFFIX}"
+        assemblies = [_assembly_json(asm, files) for asm, files in successful]
+        report = _build_report(summary_params, assemblies, failures, False, run_at)
+        write_json(report, str(json_path))
+        logging.info(f"Wrote JSON report to {json_path}")
+    except OSError as err:
+        raise GenomeDLError(f"failed to write run outputs to {outdir}: {err}") from err
     if emit_json:
         _emit_json(report)
 
@@ -637,6 +660,10 @@ def _run_download(
     show_progress,
 ):
     """Core workflow. Raises GenomeDLError subclasses handled by the CLI."""
+    if accession:
+        accession = accession.strip()
+    if species:
+        species = species.strip()
     provided = [
         name
         for name, val in (
@@ -653,10 +680,19 @@ def _run_download(
 
     fmt_list = _parse_formats(formats)
     level_list = _parse_levels(assembly_level)
-    if prefix in ("", ".", "..") or prefix != Path(prefix).name:
+    if not prefix.strip() or prefix in (".", "..") or prefix != Path(prefix).name:
         raise ValidationError(
             f"--prefix must be a bare filename, not a path: {prefix!r}"
         )
+    outdir = Path(outdir).expanduser().resolve()
+    try:
+        outdir.mkdir(parents=True, exist_ok=True)
+    except OSError as err:
+        raise ValidationError(
+            f"cannot create output directory {outdir}: {err}"
+        ) from err
+    if not os.access(outdir, os.W_OK):
+        raise ValidationError(f"output directory {outdir} is not writable")
 
     if cpus > CPUS_WARN_THRESHOLD:
         logging.warning(
@@ -687,13 +723,6 @@ def _run_download(
         identity_encoding=True,
         pool_maxsize=max(cpus, 10),
     )
-    outdir = Path(outdir).resolve()
-    try:
-        outdir.mkdir(parents=True, exist_ok=True)
-    except OSError as err:
-        raise ValidationError(
-            f"cannot create output directory {outdir}: {err}"
-        ) from err
     # Run-start timestamp, shared by the summary and JSON report so both agree.
     run_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
