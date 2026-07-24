@@ -21,6 +21,10 @@ from genome_dl.utils import md5sum
 CHUNK_SIZE = 1024 * 1024
 
 
+class _PermanentDownloadError(DownloadError):
+    """A download failure that must not be retried (e.g. an HTTP 4xx)."""
+
+
 class AssemblyDownload(NamedTuple):
     """Result of downloading one assembly's requested formats."""
 
@@ -62,7 +66,9 @@ def resolve_dir(
         resp = session.get(f"{candidate}md5checksums.txt")
     except requests.RequestException as err:
         raise DownloadError(
-            f"could not reach FTP for {accession}: {err}", accession=accession
+            f"could not reach the NCBI FTP site for {accession}: {err} "
+            "(check your network connection or retry later)",
+            accession=accession,
         ) from err
     if resp.ok:
         return candidate, _parse_md5(resp.text)
@@ -73,7 +79,9 @@ def resolve_dir(
         listing = session.get(parent)
     except requests.RequestException as err:
         raise DownloadError(
-            f"could not reach FTP for {accession}: {err}", accession=accession
+            f"could not reach the NCBI FTP site for {accession}: {err} "
+            "(check your network connection or retry later)",
+            accession=accession,
         ) from err
     if listing.ok:
         match = re.search(rf'href="({re.escape(accession)}_[^"/]+)/"', listing.text)
@@ -81,7 +89,20 @@ def resolve_dir(
             dir_url = f"{parent}{match.group(1)}/"
             return dir_url, fetch_md5(session, dir_url)
 
-    raise DownloadError(f"no FTP directory for {accession}", accession=accession)
+    # Neither the candidate manifest nor the parent listing yielded a directory.
+    # Distinguish a transient server error from a genuinely absent assembly so
+    # the message says whether to retry or to check the accession.
+    if resp.status_code >= 500 or listing.status_code >= 500:
+        raise DownloadError(
+            f"NCBI FTP server error resolving {accession} "
+            f"(HTTP {resp.status_code}); the server may be busy -- retry later",
+            accession=accession,
+        )
+    raise DownloadError(
+        f"no FTP directory for {accession}; it may have been removed or "
+        "suppressed at NCBI (verify the accession and version)",
+        accession=accession,
+    )
 
 
 def _parse_md5(text: str) -> dict[str, str]:
@@ -127,6 +148,18 @@ def _download_file(
         try:
             with session.get(url, stream=True) as resp:
                 if not resp.ok:
+                    # A 4xx (other than the retriable 408/429) is permanent: the
+                    # file is absent or forbidden, so retrying only wastes
+                    # attempts and sleeps. 5xx/408/429 fall through to retry.
+                    if 400 <= resp.status_code < 500 and resp.status_code not in (
+                        408,
+                        429,
+                    ):
+                        raise _PermanentDownloadError(
+                            f"{label} unavailable: HTTP {resp.status_code} "
+                            "(the file may have been removed or superseded at "
+                            "NCBI; verify the accession and --formats)"
+                        )
                     last_error = f"HTTP {resp.status_code}"
                     raise DownloadError(last_error)
                 total = int(resp.headers.get("Content-Length", 0)) or None
@@ -144,15 +177,25 @@ def _download_file(
             # Verify completeness even when md5 is skipped (--ignore): a
             # truncated-but-clean stream would otherwise be saved as success.
             if total is not None and bytes_written != total:
-                last_error = f"incomplete download ({bytes_written} of {total} bytes)"
+                last_error = (
+                    f"incomplete download ({bytes_written} of {total} bytes; "
+                    "the connection dropped mid-transfer)"
+                )
                 raise DownloadError(last_error)
             if expected_md5 is not None:
                 actual = md5sum(part)
                 if actual != expected_md5:
-                    last_error = f"md5 mismatch (expected {expected_md5}, got {actual})"
+                    last_error = (
+                        f"md5 mismatch (expected {expected_md5}, got {actual}; "
+                        "the file was corrupted in transit)"
+                    )
                     raise DownloadError(last_error)
             part.replace(target)
             return
+        except _PermanentDownloadError:
+            # Not retriable: clean up the partial file and surface immediately.
+            part.unlink(missing_ok=True)
+            raise
         except (requests.RequestException, DownloadError, OSError) as err:
             last_error = str(err)
             part.unlink(missing_ok=True)
@@ -164,7 +207,9 @@ def _download_file(
                 progress.remove_task(task_id)
 
     raise DownloadError(
-        f"failed to download {label}: {last_error}",
+        f"failed to download {label} after {max_attempts} attempt(s): "
+        f"{last_error} (transient network/server error -- retry later, or "
+        "raise --max-attempts / --sleep)"
     )
 
 
@@ -244,12 +289,15 @@ def download_assembly(
         if failed:
             raise DownloadError(
                 f"all requested formats failed for {asm.accession}: "
-                f"{', '.join(failed)}",
+                f"{', '.join(failed)} (see the per-format errors above; "
+                "retry later or raise --max-attempts / --sleep)",
                 accession=asm.accession,
             )
         raise DownloadError(
             f"no requested formats available for {asm.accession}: "
-            f"{', '.join(unavailable)}",
+            f"{', '.join(unavailable)} (this version may be superseded and "
+            "retain only metadata; omit the version to get the current "
+            "assembly, or request different --formats)",
             accession=asm.accession,
         )
 

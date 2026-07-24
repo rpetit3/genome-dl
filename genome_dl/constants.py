@@ -29,10 +29,13 @@ JSON_SUFFIX = ".json"
 FORMATS = {
     "fasta": ("_genomic.fna.gz", "fna.gz"),
     "genbank": ("_genomic.gbff.gz", "gbff.gz"),
+    "wgs": ("_wgsmaster.gbff.gz", "wgsmaster.gbff.gz"),
     "gff": ("_genomic.gff.gz", "gff.gz"),
     "gtf": ("_genomic.gtf.gz", "gtf.gz"),
     "protein": ("_protein.faa.gz", "faa.gz"),
+    "genpept": ("_protein.gpff.gz", "gpff.gz"),
     "cds": ("_cds_from_genomic.fna.gz", "cds.fna.gz"),
+    "translated-cds": ("_translated_cds.faa.gz", "translated_cds.faa.gz"),
     "rna": ("_rna_from_genomic.fna.gz", "rna.fna.gz"),
     "feature-table": ("_feature_table.txt.gz", "feature_table.txt.gz"),
     "assembly-report": ("_assembly_report.txt", "assembly_report.txt"),

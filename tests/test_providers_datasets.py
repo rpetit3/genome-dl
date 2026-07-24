@@ -164,6 +164,23 @@ class TestResolveAccessions:
             resolve_accessions(session, ["GCF_000005845"])
 
     @responses.activate
+    def test_5xx_storm_exhausts_with_retry_hint(self, mocker):
+        # A persistent 5xx is retried by the adapter, then surfaced (not as a
+        # urllib3 "Max retries exceeded" wall) as an ApiError that names the
+        # status and tells the user the API may be busy -- retry later.
+        mocker.patch("genome_dl.providers.datasets.time.sleep")
+        url = f"{DATASETS_API}/genome/dataset_report"
+        responses.add(responses.POST, url, status=503)
+        session = make_session(3, None)
+        with pytest.raises(ApiError) as excinfo:
+            resolve_accessions(session, ["GCF_000005845"])
+        msg = str(excinfo.value)
+        assert "503" in msg
+        assert "retry later" in msg
+        # 3 attempts total = 1 initial + 2 adapter retries.
+        assert len(responses.calls) == 3
+
+    @responses.activate
     def test_api_error_surfaces_message_without_leaking_key(self):
         # NCBI's 4xx JSON body carries a human message and echoes the submitted
         # api-key; the ApiError must surface the message but never the key.

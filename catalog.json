@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T16:28:06.512942+00:00",
+  "generated_at": "2026-07-24T16:47:32.936571+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -49,7 +49,7 @@
             },
             {
               "name": "formats",
-              "description": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all).",
+              "description": "Comma-separated formats to download (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated-cds,rna,feature-table,assembly-report,assembly-stats or all).",
               "default": "fasta"
             },
             {
@@ -377,7 +377,7 @@
             },
             {
               "name": "formats",
-              "description": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all).",
+              "description": "Comma-separated formats to download (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated-cds,rna,feature-table,assembly-report,assembly-stats or all).",
               "default": "fasta"
             },
             {
@@ -479,6 +479,10 @@
             "_genomic.gbff.gz",
             "gbff.gz"
           ],
+          "wgs": [
+            "_wgsmaster.gbff.gz",
+            "wgsmaster.gbff.gz"
+          ],
           "gff": [
             "_genomic.gff.gz",
             "gff.gz"
@@ -491,9 +495,17 @@
             "_protein.faa.gz",
             "faa.gz"
           ],
+          "genpept": [
+            "_protein.gpff.gz",
+            "gpff.gz"
+          ],
           "cds": [
             "_cds_from_genomic.fna.gz",
             "cds.fna.gz"
+          ],
+          "translated-cds": [
+            "_translated_cds.faa.gz",
+            "translated_cds.faa.gz"
           ],
           "rna": [
             "_rna_from_genomic.fna.gz",
@@ -746,7 +758,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 172
+          "lineno": 177
         },
         "_request_json": {
           "name": "_request_json",
@@ -766,7 +778,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 177
+          "lineno": 182
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -782,7 +794,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 232
+          "lineno": 239
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -807,7 +819,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 278
+          "lineno": 285
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -823,7 +835,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 318
+          "lineno": 325
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -852,7 +864,7 @@
             }
           ],
           "returns": "tuple[list[Assembly], int]",
-          "lineno": 343
+          "lineno": 350
         }
       },
       "classes": {
@@ -893,7 +905,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 32
+          "lineno": 36
         },
         "assembly_dir_url": {
           "name": "assembly_dir_url",
@@ -913,7 +925,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 37
+          "lineno": 41
         },
         "resolve_dir": {
           "name": "resolve_dir",
@@ -937,7 +949,7 @@
             }
           ],
           "returns": "tuple[str, dict[str, str]]",
-          "lineno": 50
+          "lineno": 54
         },
         "_parse_md5": {
           "name": "_parse_md5",
@@ -949,7 +961,7 @@
             }
           ],
           "returns": "dict[str, str]",
-          "lineno": 87
+          "lineno": 108
         },
         "fetch_md5": {
           "name": "fetch_md5",
@@ -965,7 +977,7 @@
             }
           ],
           "returns": "dict[str, str]",
-          "lineno": 99
+          "lineno": 120
         },
         "_download_file": {
           "name": "_download_file",
@@ -1004,7 +1016,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 112
+          "lineno": 133
         },
         "download_assembly": {
           "name": "download_assembly",
@@ -1056,10 +1068,19 @@
             }
           ],
           "returns": "AssemblyDownload",
-          "lineno": 171
+          "lineno": 216
         }
       },
       "classes": {
+        "_PermanentDownloadError": {
+          "name": "_PermanentDownloadError",
+          "description": "A download failure that must not be retried (e.g. an HTTP 4xx).",
+          "bases": [
+            "DownloadError"
+          ],
+          "init_args": [],
+          "lineno": 24
+        },
         "AssemblyDownload": {
           "name": "AssemblyDownload",
           "description": "Result of downloading one assembly's requested formats.",
@@ -1067,7 +1088,7 @@
             "NamedTuple"
           ],
           "init_args": [],
-          "lineno": 24
+          "lineno": 28
         }
       },
       "constants": {}
@@ -1189,7 +1210,7 @@
     {
       "name": "--formats",
       "default": "fasta",
-      "help": "Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all)."
+      "help": "Comma-separated formats to download (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated-cds,rna,feature-table,assembly-report,assembly-stats or all)."
     },
     {
       "name": "--limit",
@@ -1409,6 +1430,10 @@
         "_genomic.gbff.gz",
         "gbff.gz"
       ],
+      "wgs": [
+        "_wgsmaster.gbff.gz",
+        "wgsmaster.gbff.gz"
+      ],
       "gff": [
         "_genomic.gff.gz",
         "gff.gz"
@@ -1421,9 +1446,17 @@
         "_protein.faa.gz",
         "faa.gz"
       ],
+      "genpept": [
+        "_protein.gpff.gz",
+        "gpff.gz"
+      ],
       "cds": [
         "_cds_from_genomic.fna.gz",
         "cds.fna.gz"
+      ],
+      "translated-cds": [
+        "_translated_cds.faa.gz",
+        "translated_cds.faa.gz"
       ],
       "rna": [
         "_rna_from_genomic.fna.gz",

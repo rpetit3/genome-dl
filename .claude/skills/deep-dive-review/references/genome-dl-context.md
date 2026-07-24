@@ -277,12 +277,64 @@ column TSV has no downstream consumer today).
   boundary is considered hardened; next dogfood session (if any) should be
   fault-injection or the deferred format-mapping items, in fresh context.
 
+### Fault-injection round 1 — (commit pending)
+Successor to Dogfooding round 1: exercised the TRANSPORT/DOWNLOAD failure paths
+users can't easily trigger live, via fault injection (a stub streamed-response
+session + `responses` 5xx/404). Graded each on "says what's wrong AND what to
+do?" + exit code; fixed the weak ones, one regression test per fix (117 -> 128
+unit tests; ruff clean). No new correctness bugs — the R1-R5 core held; this was
+message-quality + a design cleanup + the deferred formats.
+- **Key design fix: `make_session` now sets `Retry(raise_on_status=False)`.** A
+  persistent 5xx used to surface as urllib3's opaque `MaxRetryError` ("Max
+  retries exceeded ... too many 503 error responses") — because the default
+  `raise_on_status=True` raises after exhausting retries. Now the final 5xx/429
+  RESPONSE is returned, so every layer's purpose-built message is reachable:
+  `_request_json` (API: "returned 503 ... may be busy -- retry later"),
+  `resolve_dir` (FTP resolve: 5xx-vs-404 branch), and `_download_file`'s manual
+  loop (FTP byte download: clean "HTTP 503"). This is what made the resolve_dir
+  `status_code >= 500` branch live rather than dead code.
+- **`_download_file`: 4xx (except 408/429) is now fail-fast, non-retriable**
+  (new `_PermanentDownloadError`). A 404-in-manifest file used to burn every
+  attempt + sleep; now one request, message "unavailable: HTTP 404 (the file may
+  have been removed or superseded ...)". 408/429 stay retriable. The final
+  exhaustion raise gained "after N attempt(s) ... retry later, or raise
+  --max-attempts / --sleep"; md5-mismatch/truncation messages gained cause hints.
+- **`resolve_dir`**: final raise distinguishes transient 5xx ("NCBI FTP server
+  error ... retry later") from a genuinely absent dir ("no FTP directory ... may
+  have been removed or suppressed"); network-error branch gained a retry hint.
+- **`download_assembly`** zero-file messages: "no requested formats available"
+  now hints the version may be superseded + how to recover (omit version / change
+  --formats); "all requested formats failed" points at the per-format errors.
+- **Deferred formats WIRED (secondary task):** `wgs` (`_wgsmaster.gbff.gz`),
+  `genpept` (`_protein.gpff.gz`), `translated-cds` (`_translated_cds.faa.gz`)
+  added to `constants.FORMATS` — each verified against the LIVE manifest of a
+  contig/WGS assembly (GCF_000734955.1) and smoke-downloaded end-to-end (md5 OK,
+  exit 0). Output exts chosen distinct from siblings (gpff.gz vs protein faa.gz;
+  wgsmaster.gbff.gz vs genbank gbff.gz; translated_cds.faa.gz). Help text +
+  README + catalog + llms.txt regenerated.
+- Tests: `TestConnectionDrop` (mid-stream drop recover + exhaust via a stub
+  streamed session — `responses` can't drop mid-body), `TestServerErrorsAndFileStatus`
+  (5xx download exhaustion, 404 fail-fast, 429 still-retried, truncation w/o
+  --ignore via stub), `TestResolveDirErrors` (5xx-vs-404 messages), API 5xx
+  storm w/ retry hint, superseded message, new-formats live-suffix wiring.
+
+Live facts confirmed this round (reuse instead of re-deriving):
+- A contig/WGS RefSeq assembly's manifest exposes `_wgsmaster.gbff.gz`,
+  `_protein.gpff.gz`, `_translated_cds.faa.gz` (plus gene_ontology.gaf.gz,
+  feature_count.txt, fcs_report.txt, annotation_hashes.txt — not currently
+  mapped). A complete-genome assembly (E. coli GCF_000005845.2) has gpff +
+  translated_cds but NO wgsmaster (WGS master is WGS-assembly-only).
+- urllib3 enforces Content-Length itself (raises IncompleteRead mid-stream), so
+  the `_download_file` completeness check is a backstop for a clean short close
+  (no exception) — test it via a stub session, not `responses`.
+
 
 ## Deferred / known (raise only if you think they now matter)
 
-- gpff/genpept + `_translated_cds.faa.gz` + wgs format mapping is absent from
-  `constants.FORMATS` (the FTP dir does expose `_protein.gpff.gz` and
-  `_translated_cds.faa.gz`).
+- (RESOLVED, fault-injection round 1) gpff/genpept + `_translated_cds.faa.gz` +
+  wgs are now in `constants.FORMATS`. Still unmapped (low value, add only on
+  request): `_gene_ontology.gaf.gz`, `_feature_count.txt`, `_fcs_report.txt`,
+  `_assembly_regions.txt`, `annotation_hashes.txt`.
 - Both FTP sessions (dir/md5 resolve + byte download) are still shared across
   download threads (safe in practice on NCBI — no cookies/header mutation). The
   api-key leak to the FTP host is FIXED in R3 (L1); only the thread-sharing

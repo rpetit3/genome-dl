@@ -6,7 +6,7 @@
 - **Repository**: https://github.com/rpetit3/genome-dl
 - **License**: MIT
 - **Python**: >=3.10,<3.14
-- **Modules**: 7 | **Functions**: 34 | **Classes**: 11
+- **Modules**: 7 | **Functions**: 34 | **Classes**: 12
 
 ## Architecture
 
@@ -67,7 +67,7 @@ CLI (accession / accessions file / species)
 - **Path**: `genome_dl/providers/ftp.py`
 - **Description**: Direct FTP download provider for NCBI genome assemblies.
 - **Functions**: `_sanitize`, `assembly_dir_url`, `resolve_dir`, `_parse_md5`, `fetch_md5`, `_download_file`, `download_assembly`
-- **Classes**: `AssemblyDownload`
+- **Classes**: `_PermanentDownloadError`, `AssemblyDownload`
 
 ### genome_dl.utils
 - **Path**: `genome_dl/utils.py`
@@ -83,7 +83,7 @@ CLI (accession / accessions file / species)
 | `--species` |  | A species (or any taxon) name to download assemblies for. |
 | `--section` | refseq | Assembly source to query for --species. |
 | `--assembly-level` | all | Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all). |
-| `--formats` | fasta | Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all). |
+| `--formats` | fasta | Comma-separated formats to download (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated-cds,rna,feature-table,assembly-report,assembly-stats or all). |
 | `--limit` | 10 | Download the first N assemblies for --species (NCBI relevance order, reference first; 0 = no limit). |
 | `--max-attempts` (`-m`) | 3 | Maximum number of download attempts. |
 | `--sleep` (`-s`) | 10 | Seconds to sleep between download retries. |

@@ -146,6 +146,11 @@ def make_session(
         backoff_factor=0.5,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=frozenset(["GET", "POST"]),
+        # Return the final 5xx/429 response instead of raising urllib3's opaque
+        # "Max retries exceeded" MaxRetryError, so every caller surfaces its own
+        # purpose-built message: _request_json (API), resolve_dir (FTP resolve),
+        # and _download_file's manual loop (FTP byte download).
+        raise_on_status=False,
     )
     adapter = HTTPAdapter(max_retries=retry, pool_maxsize=pool_maxsize)
     session.mount("https://", adapter)
@@ -217,6 +222,8 @@ def _request_json(session, method, url, context, **kwargs) -> dict:
                 message = body["error"].get("message")
                 if message:
                     detail = f": {message}"
+            if resp.status_code in (429, 500, 502, 503, 504):
+                detail += " (the NCBI Datasets API may be busy -- retry later)"
             raise ApiError(
                 f"Datasets API returned {resp.status_code} for {context}{detail}",
                 status_code=resp.status_code,

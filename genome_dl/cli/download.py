@@ -141,8 +141,8 @@ click.rich_click.OPTION_GROUPS = {
     default="fasta",
     show_default=True,
     help="Comma-separated formats to download "
-    "(fasta,genbank,gff,gtf,protein,cds,rna,feature-table,"
-    "assembly-report,assembly-stats or all).",
+    "(fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated-cds,rna,"
+    "feature-table,assembly-report,assembly-stats or all).",
 )
 @click.option(
     "--limit",

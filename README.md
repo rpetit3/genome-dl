@@ -73,8 +73,9 @@ genome-dl --help
 │                                         (complete,chromosome,scaffold,contig or all). [default:    │
 │                                         all]                                                       │
 │ --formats         TEXT                  Comma-separated formats to download                        │
-│                                         (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assem │
-│                                         bly-report,assembly-stats or all). [default: fasta]        │
+│                                         (fasta,genbank,wgs,gff,gtf,protein,genpept,cds,translated- │
+│                                         cds,rna,feature-table,assembly-report,assembly-stats or     │
+│                                         all). [default: fasta]                                     │
 │ --limit           INTEGER RANGE [x>=0]  Download the first N assemblies for --species (NCBI        │
 │                                         relevance order, reference first; 0 = no limit). [default: │
 │                                         10]                                                        │
@@ -143,10 +144,13 @@ format. Available formats and their output extensions:
 |-------------------|-------------------------------|
 | `fasta`           | `.fna.gz`                     |
 | `genbank`         | `.gbff.gz`                    |
+| `wgs`             | `.wgsmaster.gbff.gz`          |
 | `gff`             | `.gff.gz`                     |
 | `gtf`             | `.gtf.gz`                     |
 | `protein`         | `.faa.gz`                     |
+| `genpept`         | `.gpff.gz`                    |
 | `cds`             | `.cds.fna.gz`                 |
+| `translated-cds`  | `.translated_cds.faa.gz`      |
 | `rna`             | `.rna.fna.gz`                 |
 | `feature-table`   | `.feature_table.txt.gz`       |
 | `assembly-report` | `.assembly_report.txt`        |
