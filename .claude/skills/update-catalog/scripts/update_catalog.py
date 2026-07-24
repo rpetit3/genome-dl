@@ -12,6 +12,7 @@ Usage:
 
 import ast
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 PACKAGE_DIR = PROJECT_ROOT / "genome_dl"
 CATALOG_PATH = PROJECT_ROOT / "catalog.json"
 LLMS_PATH = PROJECT_ROOT / "llms.txt"
+SKILLS_DIR = PROJECT_ROOT / ".claude" / "skills"
 
 
 def parse_pyproject() -> dict:
@@ -78,6 +80,37 @@ def parse_pyproject() -> dict:
 
     meta["dependencies"] = {"runtime": runtime_deps, "dev": dev_deps}
     return meta
+
+
+def parse_skills() -> list[dict]:
+    """Extract name + description from each .claude/skills/*/SKILL.md frontmatter."""
+    skills: list[dict] = []
+    if not SKILLS_DIR.exists():
+        return skills
+    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        text = skill_md.read_text()
+        if not text.startswith("---"):
+            continue
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            continue
+        fields: dict[str, str] = {}
+        key = None
+        for line in parts[1].splitlines():
+            match = re.match(r"^([A-Za-z][\w-]*):\s*(.*)$", line)
+            if match:
+                key = match.group(1)
+                fields[key] = match.group(2).strip()
+            elif key and line.strip():
+                fields[key] += " " + line.strip()
+        skills.append(
+            {
+                "name": fields.get("name", skill_md.parent.name),
+                "description": fields.get("description", ""),
+                "path": str(skill_md.relative_to(PROJECT_ROOT)),
+            }
+        )
+    return skills
 
 
 def get_docstring(node) -> str:
@@ -419,6 +452,7 @@ def build_catalog() -> dict:
         "external_tools": [],
         "exceptions": exceptions,
         "constants": constants,
+        "skills": parse_skills(),
     }
 
     return catalog
@@ -577,6 +611,24 @@ def generate_llms_txt(catalog: dict) -> str:
         ]
     )
     sections.extend(tool_lines)
+    skills = catalog.get("skills", [])
+    if skills:
+        sections.extend(
+            [
+                "",
+                "## Skills",
+                "",
+                "Agent skills live in `.claude/skills/`. Read the referenced "
+                "`SKILL.md` before using one.",
+                "",
+            ]
+        )
+        for sk in skills:
+            sections.append(f"### {sk['name']}")
+            sections.append(f"- **Path**: `{sk['path']}`")
+            if sk.get("description"):
+                sections.append(f"- **Description**: {sk['description']}")
+            sections.append("")
     sections.extend(
         [
             "",
@@ -622,9 +674,10 @@ def main():
     n_functions = sum(len(m.get("functions", {})) for m in catalog["modules"].values())
     n_options = len(catalog["cli_options"])
     n_exceptions = len(catalog["exceptions"])
+    n_skills = len(catalog.get("skills", []))
     print(
         f"Done: {n_modules} modules, {n_functions} functions, "
-        f"{n_options} CLI options, {n_exceptions} exceptions"
+        f"{n_options} CLI options, {n_exceptions} exceptions, {n_skills} skills"
     )
 
 

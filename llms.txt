@@ -118,6 +118,19 @@ Exit codes: `1` = validation/provider/download error, `2` = empty/not found/miss
 
 None.
 
+## Skills
+
+Agent skills live in `.claude/skills/`. Read the referenced `SKILL.md` before using one.
+
+### deep-dive-review
+- **Path**: `.claude/skills/deep-dive-review/SKILL.md`
+- **Description**: Conduct a thorough, adversarial, source-grounded code review aimed at correctness, robustness, and production-readiness — pairing an independent fresh-context reviewer subagent with live verification against real sources, then reconciling the two before any finding stands. Use this whenever the user asks for a deep-dive, adversarial, second-pass, or "go deeper" review, an audit, or a correctness/robustness/thread-safety pass — especially on genome-dl (the Datasets v2 + FTP downloader) but applicable to any tool with live external dependencies. Trigger even when the user just says "review this hard", "poke holes in it", or "is this production-ready?".
+
+### update-catalog
+- **Path**: `.claude/skills/update-catalog/SKILL.md`
+- **Description**: Regenerate catalog.json and llms.txt from the genome-dl source code using the AST-based catalog generation script.
+
+
 ## Development
 
 ```bash

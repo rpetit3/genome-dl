@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T04:42:13.391029+00:00",
+  "generated_at": "2026-07-24T04:45:52.702518+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -1445,5 +1445,17 @@
       "gc_percent",
       "files"
     ]
-  }
+  },
+  "skills": [
+    {
+      "name": "deep-dive-review",
+      "description": "Conduct a thorough, adversarial, source-grounded code review aimed at correctness, robustness, and production-readiness \u2014 pairing an independent fresh-context reviewer subagent with live verification against real sources, then reconciling the two before any finding stands. Use this whenever the user asks for a deep-dive, adversarial, second-pass, or \"go deeper\" review, an audit, or a correctness/robustness/thread-safety pass \u2014 especially on genome-dl (the Datasets v2 + FTP downloader) but applicable to any tool with live external dependencies. Trigger even when the user just says \"review this hard\", \"poke holes in it\", or \"is this production-ready?\".",
+      "path": ".claude/skills/deep-dive-review/SKILL.md"
+    },
+    {
+      "name": "update-catalog",
+      "description": "Regenerate catalog.json and llms.txt from the genome-dl source code using the AST-based catalog generation script.",
+      "path": ".claude/skills/update-catalog/SKILL.md"
+    }
+  ]
 }

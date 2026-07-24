@@ -76,6 +76,9 @@ genome-dl/
 │   └── test_integration.py      # Real API/FTP integration tests
 ├── .claude/
 │   └── skills/
+│       ├── deep-dive-review/     # Adversarial source-grounded review process
+│       │   ├── SKILL.md
+│       │   └── references/genome-dl-context.md
 │       └── update-catalog/
 │           ├── SKILL.md             # Skill definition for /update-catalog
 │           └── scripts/
@@ -134,3 +137,16 @@ CLI (accession / accessions file / species)
   default; they make real NCBI Datasets API and FTP requests.
 - After changing modules, functions, CLI options, constants, or the exception
   hierarchy, regenerate the context files with the `update-catalog` skill.
+
+## Skills
+
+Agent skills live in `.claude/skills/`; read a skill's `SKILL.md` before using
+it. They are also enumerated in the generated `llms.txt` and `catalog.json`.
+
+- **deep-dive-review** — adversarial, source-grounded review process: pairs an
+  independent fresh-context reviewer with live verification, reconciles the two,
+  and confirms scope before any code change. Use for deep-dive / second-pass
+  reviews, audits, or correctness / robustness / thread-safety passes.
+- **update-catalog** — regenerate `catalog.json` and `llms.txt` from source via
+  the AST-based generator. Run after changing modules, functions, CLI options,
+  constants, the exception hierarchy, or the set of skills.
