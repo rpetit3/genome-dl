@@ -50,11 +50,30 @@ class TestSelectForInput:
         assert action == "selected"
         assert asm.accession == "GCF_000005845.2"
 
-    def test_versioned_previous_selects_current(self):
+    def test_versioned_previous_stale_by_default(self):
+        # Default (allow_outdated=False): an explicit outdated pin is refused.
         v = versions((2, "current"), (1, "previous"))
         asm, action = select_for_input("GCF_000005845", 1, v)
-        assert action == "superseded"
-        assert asm.accession == "GCF_000005845.2"
+        assert action == "stale"
+        assert asm is None
+
+    def test_versioned_previous_honored_with_allow_outdated(self):
+        v = versions((2, "current"), (1, "previous"))
+        asm, action = select_for_input("GCF_000005845", 1, v, allow_outdated=True)
+        assert action == "outdated"
+        assert asm.accession == "GCF_000005845.1"
+
+    def test_versioned_previous_no_current_stale_by_default(self):
+        v = versions((1, "previous"))
+        asm, action = select_for_input("GCF_000005845", 1, v)
+        assert action == "stale"
+        assert asm is None
+
+    def test_versioned_previous_no_current_honored_with_allow_outdated(self):
+        v = versions((1, "previous"))
+        asm, action = select_for_input("GCF_000005845", 1, v, allow_outdated=True)
+        assert action == "outdated"
+        assert asm.accession == "GCF_000005845.1"
 
     def test_versioned_suppressed(self):
         v = versions((2, "current"), (1, "suppressed"))
@@ -232,6 +251,16 @@ class TestMakeSession:
     def test_rate_limit_disabled_has_no_limiter(self):
         session = make_session(3, None, rate_limit=False)
         assert not hasattr(session, "rate_limiter")
+
+    def test_identity_encoding_sets_header(self):
+        # F1: the byte-download session must request identity so Content-Length
+        # matches the bytes written (NCBI transfer-gzips plain-text formats).
+        session = make_session(3, None, identity_encoding=True)
+        assert session.headers["Accept-Encoding"] == "identity"
+
+    def test_default_encoding_allows_gzip(self):
+        session = make_session(3, None)
+        assert session.headers["Accept-Encoding"] != "identity"
 
 
 class TestRateLimiter:

@@ -169,7 +169,7 @@ def _download_file(
 
 
 def download_assembly(
-    session: requests.Session,
+    resolve_session: requests.Session,
     download_session: requests.Session,
     asm: Assembly,
     formats: list[str],
@@ -188,7 +188,9 @@ def download_assembly(
     that errored. Files from successful formats are kept even if others fail;
     DownloadError is raised only when the assembly yields zero files.
     """
-    dir_url, md5s = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
+    dir_url, md5s = resolve_dir(
+        resolve_session, base_url, asm.accession, asm.assembly_name
+    )
     # Derive the file-name stem from the resolved directory (``{accession}_{stem}``)
     # so it is correct even when resolve_dir's fallback found a directory whose
     # NCBI stem differs from our sanitized assembly name.

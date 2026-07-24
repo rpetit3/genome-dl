@@ -180,6 +180,12 @@ click.rich_click.OPTION_GROUPS = {
     help="Skip MD5 validation of downloaded files.",
 )
 @click.option(
+    "--allow-outdated",
+    is_flag=True,
+    help="Download an explicitly requested outdated (superseded) accession "
+    "version instead of erroring.",
+)
+@click.option(
     "-o",
     "--outdir",
     default="./",
@@ -223,6 +229,7 @@ def genomedl(
     sleep,
     force,
     ignore_md5,
+    allow_outdated,
     outdir,
     prefix,
     cpus,
@@ -268,6 +275,7 @@ def genomedl(
             sleep=sleep,
             force=force,
             ignore_md5=ignore_md5,
+            allow_outdated=allow_outdated,
             api_key=api_key,
             outdir=outdir,
             prefix=prefix,
@@ -392,7 +400,7 @@ def _parse_levels(assembly_level: str) -> list[str]:
     return values
 
 
-def _resolve_targets(session, accession, accessions, failures):
+def _resolve_targets(session, accession, accessions, failures, allow_outdated):
     """Resolve accession input(s) into target assemblies, recording failures."""
     if accession:
         tokens = [accession]
@@ -417,9 +425,37 @@ def _resolve_targets(session, accession, accessions, failures):
     targets = []
     seen: set[str] = set()
     for token, (base, version) in parsed.items():
-        asm, action = select_for_input(base, version, resolved.get(base, {}))
+        group = resolved.get(base, {})
+        asm, action = select_for_input(base, version, group, allow_outdated)
         if action == "selected":
             logging.info(f"Resolved {token} to {asm.accession} {asm.organism_name}")
+        elif action == "outdated":
+            newer = next(
+                (a.accession for a in group.values() if a.status == "current"),
+                None,
+            )
+            hint = f"; a newer version {newer} exists" if newer else ""
+            logging.warning(
+                f"{token} is not the latest version{hint}; downloading it as requested"
+            )
+        elif action == "stale":
+            newer = next(
+                (a.accession for a in group.values() if a.status == "current"),
+                None,
+            )
+            if newer:
+                logging.error(
+                    f"{token} is not the latest version (current: {newer}); "
+                    f"omit the version to download {newer}, or pass "
+                    f"--allow-outdated to download {token} exactly"
+                )
+            else:
+                logging.error(
+                    f"{token} is not the latest version; pass --allow-outdated "
+                    f"to download it exactly"
+                )
+            failures[token] = "outdated"
+            continue
         elif action == "superseded":
             logging.warning(f"{token} is superseded; selecting {asm.accession}")
         elif action == "suppressed":
@@ -459,7 +495,7 @@ def _log_asm_result(i: int, total: int, asm, result) -> None:
 
 
 def _execute_downloads(
-    session,
+    ftp_session,
     download_session,
     targets,
     fmt_list,
@@ -497,7 +533,7 @@ def _execute_downloads(
         future_to_asm = {
             executor.submit(
                 download_assembly,
-                session,
+                ftp_session,
                 download_session,
                 asm,
                 fmt_list,
@@ -587,6 +623,7 @@ def _run_download(
     sleep,
     force,
     ignore_md5,
+    allow_outdated,
     api_key,
     outdir,
     prefix,
@@ -624,8 +661,18 @@ def _run_download(
         )
 
     session = make_session(max_attempts, api_key)
+    # The FTP host needs no api-key. Resolution (directory listing +
+    # md5checksums.txt) keeps adapter retries for transient 5xx; the byte
+    # download session opts out of adapter retries (its own loop is
+    # authoritative) and requests identity encoding so Content-Length matches
+    # the bytes written.
+    ftp_session = make_session(max_attempts, None, rate_limit=False)
     download_session = make_session(
-        max_attempts, api_key, retries=False, rate_limit=False
+        max_attempts,
+        None,
+        retries=False,
+        rate_limit=False,
+        identity_encoding=True,
     )
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
@@ -651,6 +698,7 @@ def _run_download(
         ("sleep", sleep),
         ("force", force),
         ("ignore", ignore_md5),
+        ("allow-outdated", allow_outdated),
         ("api-key", "****" if api_key else None),
         ("outdir", outdir),
         ("prefix", prefix),
@@ -671,7 +719,9 @@ def _run_download(
                 f"Randomly selected {len(targets)} assemblies (--limit {limit} --seed {seed})"
             )
     else:
-        targets = _resolve_targets(session, accession, accessions, failures)
+        targets = _resolve_targets(
+            session, accession, accessions, failures, allow_outdated
+        )
 
     if dry_run:
         assemblies = [_assembly_json(asm, []) for asm in targets]
@@ -705,7 +755,7 @@ def _run_download(
         logging.info(f"Downloading {which_format} for {who} to {outdir}")
 
     successful = _execute_downloads(
-        session,
+        ftp_session,
         download_session,
         targets,
         fmt_list,

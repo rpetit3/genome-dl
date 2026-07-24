@@ -121,6 +121,7 @@ def make_session(
     api_key: Optional[str],
     retries: bool = True,
     rate_limit: bool = True,
+    identity_encoding: bool = False,
 ) -> requests.Session:
     """Create a requests session with retry/backoff and optional API key."""
     session = requests.Session()
@@ -136,6 +137,13 @@ def make_session(
     session.mount("http://", adapter)
     if api_key:
         session.headers["api-key"] = api_key
+    if identity_encoding:
+        # NCBI transfer-gzips plain-text formats (assembly-report/-stats), so
+        # requests would decode the body while Content-Length still reports the
+        # compressed size -- tripping the completeness check on every attempt.
+        # Requesting identity keeps Content-Length aligned with the bytes we
+        # write. Harmless for already-gzipped (.gz) formats.
+        session.headers["Accept-Encoding"] = "identity"
     if rate_limit:
         # Rate limiting is a Datasets API concern; the FTP download session
         # streams bytes from a host with no rps ceiling, so it opts out.
@@ -233,12 +241,15 @@ def resolve_accessions(
 
 
 def select_for_input(
-    base: str, version: Optional[int], versions: dict[int, Assembly]
+    base: str,
+    version: Optional[int],
+    versions: dict[int, Assembly],
+    allow_outdated: bool = False,
 ) -> tuple[Optional[Assembly], str]:
     """Decide which assembly to download for one requested accession.
 
-    Returns ``(assembly, action)`` where action is one of
-    ``selected``, ``superseded``, ``suppressed``, ``notfound``.
+    Returns ``(assembly, action)`` where action is one of ``selected``,
+    ``outdated``, ``stale``, ``superseded``, ``suppressed``, ``notfound``.
     """
     if not versions:
         return None, "notfound"
@@ -261,8 +272,12 @@ def select_for_input(
         return None, "suppressed"
     if asm.status == "current":
         return asm, "selected"
-    # previous / replaced -> select the current replacement when available.
-    return (current or asm), "superseded"
+    # Explicitly requested a non-current (previous/replaced) version. Honor it
+    # only with allow_outdated (the caller then warns a newer version exists);
+    # otherwise refuse, so a stale pin is a loud error rather than silent drift.
+    if allow_outdated:
+        return asm, "outdated"
+    return None, "stale"
 
 
 def verify_taxon(session: requests.Session, name: str) -> dict:

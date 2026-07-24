@@ -90,6 +90,7 @@ CLI (accession / accessions file / species)
 | `--sleep` (`-s`) | 10 | Seconds to sleep between download retries. |
 | `--force` (`-F`) | off | Overwrite existing files. |
 | `--ignore` (`-I`) | off | Skip MD5 validation of downloaded files. |
+| `--allow-outdated` | off | Download an explicitly requested outdated (superseded) accession version instead of erroring. |
 | `--outdir` (`-o`) | ./ | Directory to write downloads to. |
 | `--prefix` | genome-dl | Prefix for the metadata TSV file. |
 | `--cpus` | 3 | Number of concurrent downloads. |

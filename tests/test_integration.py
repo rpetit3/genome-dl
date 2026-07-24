@@ -47,11 +47,44 @@ def test_current_accession_downloads(session, tmp_path):
         assert fh.read(1) == b">"
 
 
-def test_superseded_selects_current(session):
+def test_explicit_previous_version_policy(session):
+    # F2: an explicit outdated pin is refused by default; allow_outdated honors
+    # the exact version.
     resolved = resolve_accessions(session, ["GCF_014058445"])
-    asm, action = select_for_input("GCF_014058445", 1, resolved["GCF_014058445"])
-    assert action == "superseded"
-    assert asm.accession == "GCF_014058445.2"
+    _, action = select_for_input("GCF_014058445", 1, resolved["GCF_014058445"])
+    assert action == "stale"
+    asm, action = select_for_input(
+        "GCF_014058445", 1, resolved["GCF_014058445"], allow_outdated=True
+    )
+    assert action == "outdated"
+    assert asm.accession == "GCF_014058445.1"
+
+
+def test_text_formats_download(session, tmp_path):
+    # F1 regression: NCBI transfer-gzips plain-text formats, so the download
+    # session must request identity encoding or the completeness check trips on
+    # every attempt. ignore_md5=False means success also proves md5 integrity.
+    resolved = resolve_accessions(session, ["GCF_000005845"])
+    asm, _ = select_for_input("GCF_000005845", 2, resolved["GCF_000005845"])
+    written, _, failed = download_assembly(
+        session,
+        make_session(5, None, retries=False, identity_encoding=True),
+        asm,
+        ["assembly-report", "assembly-stats"],
+        tmp_path,
+        "https://ftp.ncbi.nlm.nih.gov/genomes",
+        force=False,
+        ignore_md5=False,
+        max_attempts=5,
+        sleep=1,
+    )
+    assert not failed
+    names = sorted(p.name for p in written)
+    assert names == [
+        "GCF_000005845.2.assembly_report.txt",
+        "GCF_000005845.2.assembly_stats.txt",
+    ]
+    assert (tmp_path / "GCF_000005845.2.assembly_report.txt").stat().st_size > 0
 
 
 def test_suppressed_detected(session):

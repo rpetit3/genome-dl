@@ -73,6 +73,58 @@ Live facts confirmed this round (reuse instead of re-deriving):
 - Multi-value GET filters require repeated params, not comma-joined (400 on
   comma).
 
+### Round 3 — (commit pending)
+Two live-confirmed HIGH fixes plus two hardening items, all verified against
+live NCBI:
+- **F1 (regression from R2): `assembly-report`/`assembly-stats` downloads failed
+  100% of the time.** NCBI serves plain `.txt` formats with
+  `Content-Encoding: gzip`; `requests.iter_content` decodes them, so
+  `bytes_written` (decoded) never equals the compressed `Content-Length`, and the
+  R2 completeness check raised "incomplete download" every attempt. Fix: new
+  `make_session(..., identity_encoding=True)` sets `Accept-Encoding: identity` on
+  the byte-download session so the header matches the bytes written. `.gz`
+  formats and `feature-table` (`.txt.gz`) were never affected.
+- **F2: explicit version pins are strict by default.** Requesting `GCF_x.1` (a
+  `previous` version) used to silently download and mis-name the current `GCF_x.2`
+  (data-fidelity bug). Now, by default an explicit outdated pin is a hard error
+  (`select_for_input` returns the new `stale` action -> exit 2), with a message
+  naming the current version and the `--allow-outdated` escape. Passing
+  `--allow-outdated` honors the exact pinned version (`outdated` action) and warns
+  a newer one exists. "Give me current" is spelled by omitting the version
+  (versionless input auto-selects current, unchanged). The versionless-no-current
+  best-effort path (`superseded` -> download highest) is deliberately left as-is.
+  Suppressed pins still error regardless of the flag. Chose the boolean
+  `--allow-outdated` over a `--version-policy {strict,upgrade,exact}` enum:
+  `upgrade` overlaps with versionless syntax and the third value was speculative;
+  the enum stays a clean non-breaking refactor if bulk list-upgrading is ever
+  requested.
+- **L1: FTP traffic no longer carries the api-key.** Three purpose-built
+  sessions now: API (key + rate-limit + retries), FTP-resolve (keyless, retries
+  for transient 5xx on dir/md5), FTP-download (keyless, no adapter retries — its
+  manual loop is authoritative — + identity encoding).
+- **L4: added real-executor concurrency + single-Ctrl-C propagation tests** plus
+  live integration tests for text-format download (F1) and version-pin (F2).
+
+Live facts confirmed this round:
+- **Superseded RefSeq/GenBank versions retain only metadata stubs.** The
+  previous-version FTP directory (e.g. `GCF_000005845.1_ASM584v1/`) exists but
+  contains only `_assembly_report.txt`, `_assembly_stats.txt`, `assembly_status.txt`
+  and `md5checksums.txt` — the `_genomic.fna.gz` and other sequence files are
+  removed. So F2 correctly downloads retained formats for a pinned old version and
+  fails honestly ("no requested formats available") for removed ones, instead of
+  substituting the current sequence. LESSON: verify FILE presence in the manifest,
+  not just directory existence.
+- NCBI transfer-gzips plain `.txt` (Content-Encoding: gzip, compressed
+  Content-Length); `.gz` files are served with no Content-Encoding and matching
+  Content-Length. `Accept-Encoding: identity` makes `.txt` sizes align.
+- Missing FTP paths return **404** (text/html body), not a 200 error page, so the
+  reviewer's "200-error-body saved as data" concern is not reproducible against
+  NCBI. NCBI sends `Content-Length` for static files.
+- `refseq_category` lives under `assembly_info` on BOTH the POST-accession and
+  GET-taxon report shapes — `metadata_row` is correct for both.
+- `filters.assembly_source` accepts lowercase `refseq`/`genbank` (the value the
+  CLI sends after `--section`.lower()).
+
 ## Deferred / known (raise only if you think they now matter)
 
 - gpff/genpept + `_translated_cds.faa.gz` + wgs format mapping is absent from
@@ -82,14 +134,16 @@ Live facts confirmed this round (reuse instead of re-deriving):
   per assembly) before random `--limit` subsetting (~90s / high RSS for big
   taxa). Random sampling needs the full population, but the retained reports are
   heavy.
-- Shared `requests.Session` across download threads for FTP dir/md5 resolution
-  (safe in practice on NCBI — no cookies/header mutation; also sends the api-key
-  header to the FTP host, harmless). Left as-is.
+- Both FTP sessions (dir/md5 resolve + byte download) are still shared across
+  download threads (safe in practice on NCBI — no cookies/header mutation). The
+  api-key leak to the FTP host is FIXED in R3 (L1); only the thread-sharing
+  remains, left as-is.
 - `_parse_md5` drops space-containing filenames and uses `lstrip("./")` (strips
   chars, not the literal prefix) — harmless for real NCBI names. Nitpick.
 - `select_for_input` rare edges: versionless + no-current + any-suppressed is
-  reported suppressed even if a downloadable "previous" exists; empty/unknown
-  status falls through to "superseded". Low.
+  reported suppressed even if a downloadable "previous" exists (note: explicit
+  outdated pins are strict-by-default as of R3 — error unless `--allow-outdated`);
+  empty/unknown status falls through to "superseded". Low.
 - rich-click `use_rich_markup` and poetry `[tool.poetry]` deprecation warnings
   (left as-is).
 

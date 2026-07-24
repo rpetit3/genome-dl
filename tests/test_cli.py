@@ -2,11 +2,13 @@
 
 import json
 import random
+import threading
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
-from genome_dl.cli.download import genomedl
+from genome_dl.cli.download import _execute_downloads, genomedl
 from genome_dl.exceptions import DownloadError
 from genome_dl.providers.ftp import AssemblyDownload
 from tests.conftest import make_assembly
@@ -363,3 +365,154 @@ class TestExitCodes:
             ],
         )
         assert result.exit_code == 1
+
+
+class TestFtpSessionWiring:
+    def test_ftp_sessions_omit_api_key_and_use_identity(
+        self, mocker, tmp_path, monkeypatch
+    ):
+        # L1: the api-key must never be attached to FTP-host traffic.
+        # F1: the byte-download session must request identity encoding.
+        monkeypatch.setenv("NCBI_API_KEY", "SECRET")
+        calls = []
+
+        def fake_make_session(max_attempts, api_key, **kwargs):
+            calls.append((api_key, kwargs))
+            return object()
+
+        mocker.patch(
+            "genome_dl.cli.download.make_session", side_effect=fake_make_session
+        )
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
+        )
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
+        )
+        assert result.exit_code == 0
+        # Exactly one session carries the key (the Datasets API session); the two
+        # FTP-host sessions (dir/md5 resolution + byte download) are keyless.
+        keyed = [kw for key, kw in calls if key == "SECRET"]
+        keyless = [kw for key, kw in calls if key is None]
+        assert len(keyed) == 1
+        assert len(keyless) == 2
+        assert any(kw.get("identity_encoding") for kw in keyless)
+
+
+class TestVersionPin:
+    def _resolve_env(self, mocker):
+        prev = make_assembly(
+            accession="GCF_000005845.1", assembly_name="ASM584v1", status="previous"
+        )
+        curr = make_assembly(accession="GCF_000005845.2", status="current")
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {1: prev, 2: curr}},
+        )
+
+    def test_outdated_pin_errors_by_default(self, mocker, tmp_path, caplog):
+        # F2: an explicit outdated pin is refused by default (reproducibility);
+        # the error names the current version and the --allow-outdated escape.
+        _patch_common(mocker)
+        self._resolve_env(mocker)
+        dl = mocker.patch("genome_dl.cli.download.download_assembly")
+        with caplog.at_level("ERROR"):
+            result = CliRunner().invoke(
+                genomedl, ["--accession", "GCF_000005845.1", "-o", str(tmp_path)]
+            )
+        assert result.exit_code == 2
+        dl.assert_not_called()
+        assert "current: GCF_000005845.2" in caplog.text
+        assert "--allow-outdated" in caplog.text
+
+    def test_outdated_pin_downloaded_with_allow_outdated(
+        self, mocker, tmp_path, caplog
+    ):
+        # F2: with --allow-outdated the exact pinned version downloads and a
+        # newer-version warning is emitted.
+        _patch_common(mocker)
+        self._resolve_env(mocker)
+        captured = {}
+
+        def fake_dl(ftp_session, download_session, asm, *args, **kwargs):
+            captured["accession"] = asm.accession
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [], [])
+
+        mocker.patch("genome_dl.cli.download.download_assembly", side_effect=fake_dl)
+        with caplog.at_level("WARNING"):
+            result = CliRunner().invoke(
+                genomedl,
+                [
+                    "--accession",
+                    "GCF_000005845.1",
+                    "--allow-outdated",
+                    "-o",
+                    str(tmp_path),
+                ],
+            )
+        assert result.exit_code == 0
+        assert captured["accession"] == "GCF_000005845.1"
+        assert "newer version GCF_000005845.2 exists" in caplog.text
+
+
+class TestConcurrentDownloads:
+    def test_execute_downloads_runs_in_parallel(self, mocker, tmp_path):
+        # L4: prove real concurrency -- three workers must reach the barrier
+        # simultaneously; a serial executor would time out and fail every task.
+        targets = [make_assembly(accession=f"GCF_00000584{i}.2") for i in range(3)]
+        barrier = threading.Barrier(3, timeout=5)
+
+        def fake_dl(*args, **kwargs):
+            barrier.wait()
+            asm = args[2]
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [], [])
+
+        mocker.patch("genome_dl.cli.download.download_assembly", side_effect=fake_dl)
+        failures = {}
+        successful = _execute_downloads(
+            object(),
+            object(),
+            targets,
+            ["fasta"],
+            tmp_path,
+            False,
+            False,
+            1,
+            0,
+            3,
+            False,
+            failures,
+        )
+        assert len(successful) == 3
+        assert failures == {}
+
+    def test_execute_downloads_keyboardinterrupt_propagates(self, mocker, tmp_path):
+        # L4: a Ctrl-C in a worker cancels the batch and re-raises so the CLI
+        # can exit 130.
+        targets = [make_assembly()]
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly", side_effect=KeyboardInterrupt
+        )
+        failures = {}
+        with pytest.raises(KeyboardInterrupt):
+            _execute_downloads(
+                object(),
+                object(),
+                targets,
+                ["fasta"],
+                tmp_path,
+                False,
+                False,
+                1,
+                0,
+                1,
+                False,
+                failures,
+            )

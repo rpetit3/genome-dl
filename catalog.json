@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T04:45:52.702518+00:00",
+  "generated_at": "2026-07-24T05:28:40.904248+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -83,6 +83,11 @@
               "default": "False"
             },
             {
+              "name": "allow_outdated",
+              "description": "Download an explicitly requested outdated (superseded) accession version instead of erroring.",
+              "default": "False"
+            },
+            {
               "name": "outdir",
               "description": "Directory to write downloads to.",
               "default": "./"
@@ -122,7 +127,7 @@
             }
           ],
           "returns": null,
-          "lineno": 213
+          "lineno": 219
         },
         "_write_summary": {
           "name": "_write_summary",
@@ -150,7 +155,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 308
+          "lineno": 316
         },
         "_assembly_json": {
           "name": "_assembly_json",
@@ -165,7 +170,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 334
+          "lineno": 342
         },
         "_build_report": {
           "name": "_build_report",
@@ -193,7 +198,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 341
+          "lineno": 349
         },
         "_emit_json": {
           "name": "_emit_json",
@@ -205,7 +210,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 363
+          "lineno": 371
         },
         "_parse_formats": {
           "name": "_parse_formats",
@@ -217,7 +222,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 368
+          "lineno": 376
         },
         "_parse_levels": {
           "name": "_parse_levels",
@@ -229,7 +234,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 381
+          "lineno": 389
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -246,10 +251,13 @@
             },
             {
               "name": "failures"
+            },
+            {
+              "name": "allow_outdated"
             }
           ],
           "returns": null,
-          "lineno": 395
+          "lineno": 403
         },
         "_log_asm_result": {
           "name": "_log_asm_result",
@@ -271,14 +279,14 @@
             }
           ],
           "returns": "None",
-          "lineno": 444
+          "lineno": 480
         },
         "_execute_downloads": {
           "name": "_execute_downloads",
           "description": "Download all targets concurrently, returning [(asm, files)] for successes.\n\nRecords per-accession failures in ``failures``. On the first Ctrl-C, queued\ndownloads are cancelled and in-flight files are allowed to finish; a second\nCtrl-C force-quits (leaving any '.part' files behind).",
           "args": [
             {
-              "name": "session"
+              "name": "ftp_session"
             },
             {
               "name": "download_session"
@@ -315,7 +323,7 @@
             }
           ],
           "returns": null,
-          "lineno": 461
+          "lineno": 497
         },
         "_write_run_outputs": {
           "name": "_write_run_outputs",
@@ -344,7 +352,7 @@
             }
           ],
           "returns": null,
-          "lineno": 548
+          "lineno": 584
         },
         "_run_download": {
           "name": "_run_download",
@@ -408,6 +416,11 @@
               "default": "False"
             },
             {
+              "name": "allow_outdated",
+              "description": "Download an explicitly requested outdated (superseded) accession version instead of erroring.",
+              "default": "False"
+            },
+            {
               "name": "api_key"
             },
             {
@@ -438,14 +451,14 @@
             }
           ],
           "returns": null,
-          "lineno": 577
+          "lineno": 613
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 753
+          "lineno": 803
         }
       },
       "classes": {},
@@ -717,6 +730,11 @@
               "name": "rate_limit",
               "annotation": "bool",
               "default": "True"
+            },
+            {
+              "name": "identity_encoding",
+              "annotation": "bool",
+              "default": "False"
             }
           ],
           "returns": "requests.Session",
@@ -732,7 +750,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 149
+          "lineno": 157
         },
         "_request": {
           "name": "_request",
@@ -752,7 +770,7 @@
             }
           ],
           "returns": null,
-          "lineno": 154
+          "lineno": 162
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -768,11 +786,11 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 188
+          "lineno": 196
         },
         "select_for_input": {
           "name": "select_for_input",
-          "description": "Decide which assembly to download for one requested accession.\n\nReturns ``(assembly, action)`` where action is one of\n``selected``, ``superseded``, ``suppressed``, ``notfound``.",
+          "description": "Decide which assembly to download for one requested accession.\n\nReturns ``(assembly, action)`` where action is one of ``selected``,\n``outdated``, ``stale``, ``superseded``, ``suppressed``, ``notfound``.",
           "args": [
             {
               "name": "base",
@@ -785,10 +803,15 @@
             {
               "name": "versions",
               "annotation": "dict[int, Assembly]"
+            },
+            {
+              "name": "allow_outdated",
+              "annotation": "bool",
+              "default": "False"
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 235
+          "lineno": 243
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -804,7 +827,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 268
+          "lineno": 283
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -828,7 +851,7 @@
             }
           ],
           "returns": "list[Assembly]",
-          "lineno": 294
+          "lineno": 309
         }
       },
       "classes": {
@@ -987,7 +1010,7 @@
           "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns an ``AssemblyDownload`` with the written file paths, the requested\nformats that were unavailable (absent from the manifest), and the formats\nthat errored. Files from successful formats are kept even if others fail;\nDownloadError is raised only when the assembly yields zero files.",
           "args": [
             {
-              "name": "session",
+              "name": "resolve_session",
               "annotation": "requests.Session"
             },
             {
@@ -1204,6 +1227,11 @@
       "short": "-I",
       "is_flag": true,
       "help": "Skip MD5 validation of downloaded files."
+    },
+    {
+      "name": "--allow-outdated",
+      "is_flag": true,
+      "help": "Download an explicitly requested outdated (superseded) accession version instead of erroring."
     },
     {
       "name": "--outdir",
