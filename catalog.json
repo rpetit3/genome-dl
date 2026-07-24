@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T04:35:44.456911+00:00",
+  "generated_at": "2026-07-24T04:42:13.391029+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",

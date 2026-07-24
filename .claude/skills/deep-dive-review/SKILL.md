@@ -74,11 +74,13 @@ start editing until scope is confirmed.
 
 Fix at the source; migrate all callsites; no shims. Add a regression test per
 fix that fails on the real bug and defends an observable contract. Then verify:
-`just check` (or the project's lint+format), `just test-cov` (coverage gate),
-`just test-integration` where it exercises the change, and a real smoke test of
-the changed path (run the thing, not just a test file). Regenerate context files
-with the `update-catalog` skill after changing modules/functions/CLI/constants/
-exceptions.
+run `just fmt` to apply formatting, `just check` (lint + format check),
+`just test-cov` (coverage gate), `just test-integration` where it exercises the
+change, and a real smoke test of the changed path (run the thing, not just a
+test file). After changing modules/functions/CLI/constants/exceptions,
+regenerate the context files with the `update-catalog` skill (`catalog.json` +
+`llms.txt`). Always run `just fmt` and refresh the catalog before committing and
+pushing.
 
 ### 7. Close the loop
 
