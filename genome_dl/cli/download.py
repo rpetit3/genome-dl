@@ -415,20 +415,29 @@ def _resolve_targets(session, accession, accessions, failures):
     resolved = resolve_accessions(session, bases)
 
     targets = []
+    seen: set[str] = set()
     for token, (base, version) in parsed.items():
         asm, action = select_for_input(base, version, resolved.get(base, {}))
         if action == "selected":
             logging.info(f"Resolved {token} to {asm.accession} {asm.organism_name}")
-            targets.append(asm)
         elif action == "superseded":
             logging.warning(f"{token} is superseded; selecting {asm.accession}")
-            targets.append(asm)
         elif action == "suppressed":
             logging.error(f"{token} is suppressed on NCBI")
             failures[token] = "suppressed"
+            continue
         else:
             logging.error(f"{token} not found")
             failures[token] = "notfound"
+            continue
+        # De-duplicate: distinct tokens can resolve to the same accession
+        # (e.g. versioned and unversioned forms), which would otherwise race
+        # on the same output file when downloaded concurrently.
+        if asm.accession in seen:
+            logging.debug(f"{asm.accession} already resolved; skipping duplicate")
+            continue
+        seen.add(asm.accession)
+        targets.append(asm)
     return targets
 
 
@@ -710,6 +719,12 @@ def _run_download(
     )
 
     if failures and not successful:
+        # Purely transient download failures (the accessions resolved fine) are a
+        # download error (exit 1), not a "not found" (exit 2).
+        if all(reason == "download" for reason in failures.values()):
+            raise DownloadError(
+                f"all {len(failures)} download(s) failed: {', '.join(failures)}"
+            )
         raise AccessionNotFoundError(
             f"{len(failures)} accession(s) failed: {', '.join(failures)}",
             failed=list(failures),

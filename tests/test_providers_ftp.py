@@ -275,3 +275,48 @@ class TestDownloadAssembly:
             c for c in responses.calls if c.request.url.endswith("md5checksums.txt")
         ]
         assert len(md5_hits) == 1
+
+    @responses.activate
+    def test_fallback_dir_uses_resolved_stem(self, tmp_path):
+        # Our sanitized candidate dir 404s; the real NCBI dir has a different
+        # stem. Filenames must be built from the resolved directory, not the
+        # re-sanitized assembly name, or every format is silently "unavailable".
+        asm = make_assembly(assembly_name="Weird#Name")
+        candidate = f"{FTP_BASE}/all/GCF/000/005/845/GCF_000005845.2_Weird_Name/"
+        parent = f"{FTP_BASE}/all/GCF/000/005/845/"
+        real_dir = f"{parent}GCF_000005845.2_RealStem/"
+        fna = b"FASTA-CONTENT"
+        # candidate manifest 404s -> triggers the parent-listing fallback
+        responses.add(responses.GET, f"{candidate}md5checksums.txt", status=404)
+        responses.add(
+            responses.GET,
+            parent,
+            body='<a href="GCF_000005845.2_RealStem/">dir</a>',
+        )
+        responses.add(
+            responses.GET,
+            f"{real_dir}md5checksums.txt",
+            body=f"{_md5(fna)}  ./GCF_000005845.2_RealStem_genomic.fna.gz\n",
+        )
+        responses.add(
+            responses.GET,
+            f"{real_dir}GCF_000005845.2_RealStem_genomic.fna.gz",
+            body=fna,
+        )
+        session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
+        written, unavailable = download_assembly(
+            session,
+            download_session,
+            asm,
+            ["fasta"],
+            tmp_path,
+            FTP_BASE,
+            force=False,
+            ignore_md5=False,
+            max_attempts=2,
+            sleep=0,
+        )
+        assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
+        assert unavailable == []
+        assert (tmp_path / "GCF_000005845.2.fna.gz").read_bytes() == fna

@@ -179,13 +179,16 @@ def download_assembly(
     requested formats that were unavailable. Raises DownloadError on failure.
     """
     dir_url, md5s = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
-    san = _sanitize(asm.assembly_name)
+    # Derive the file-name stem from the resolved directory (``{accession}_{stem}``)
+    # so it is correct even when resolve_dir's fallback found a directory whose
+    # NCBI stem differs from our sanitized assembly name.
+    stem = dir_url.rstrip("/").rsplit("/", 1)[-1]
 
     written: list[Path] = []
     unavailable: list[str] = []
     for fmt in formats:
         suffix, ext = FORMATS[fmt]
-        src = f"{asm.accession}_{san}{suffix}"
+        src = f"{stem}{suffix}"
         target = outdir / f"{asm.accession}.{ext}"
         expected = md5s.get(src)
         verify = None if ignore_md5 else expected

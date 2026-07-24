@@ -7,6 +7,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from genome_dl.cli.download import genomedl
+from genome_dl.exceptions import DownloadError
 from genome_dl.providers.ftp import AssemblyDownload
 from tests.conftest import make_assembly
 
@@ -271,3 +272,49 @@ class TestExitCodes:
         expected = {a.accession for a in random.Random(1).sample(pool, 2)}
         assert set(downloaded) == expected
         assert len(downloaded) == 2
+
+    def test_duplicate_tokens_deduped(self, mocker, tmp_path):
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        calls = []
+
+        def fake_download(*args, **kwargs):
+            asm = args[2]
+            calls.append(asm.accession)
+            return AssemblyDownload([tmp_path / f"{asm.accession}.fna.gz"], [])
+
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly", side_effect=fake_download
+        )
+        acc_file = tmp_path / "accs.txt"
+        # Two distinct tokens that resolve to the same current accession.
+        acc_file.write_text("GCF_000005845\nGCF_000005845.2\n")
+        result = CliRunner().invoke(
+            genomedl,
+            ["--accessions", str(acc_file), "-o", str(tmp_path), "--cpus", "1"],
+        )
+        assert result.exit_code == 0
+        # Downloaded exactly once, not twice (no race on the shared output file).
+        assert calls == ["GCF_000005845.2"]
+        rows = (tmp_path / "genome-dl-metadata.tsv").read_text().strip().splitlines()
+        assert len(rows) == 2  # header + one data row
+
+    def test_all_download_failed_exits_one(self, mocker, tmp_path):
+        # Accession resolved fine but every download failed -> transient
+        # download error (exit 1), not "not found" (exit 2).
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            side_effect=DownloadError("network boom", accession="GCF_000005845.2"),
+        )
+        result = CliRunner().invoke(
+            genomedl, ["--accession", "GCF_000005845.2", "-o", str(tmp_path)]
+        )
+        assert result.exit_code == 1
