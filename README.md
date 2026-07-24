@@ -35,8 +35,16 @@ genome-dl --accession GCF_000005845.2 --formats fasta,gff,protein -o outdir
 ```
 
 Downloaded files are written flat as `{ACCESSION}.{EXT}` (e.g.
-`GCF_000005845.2.fna.gz`), alongside a `{prefix}-metadata.tsv` describing every
-downloaded assembly.
+`GCF_000005845.2.fna.gz`), alongside a `{prefix}-metadata.tsv` and a
+machine-readable `{prefix}.json` (run parameters, results, and per-assembly
+metadata) describing every downloaded assembly.
+
+Pass `--json` to also print the run report as compact single-line JSON to
+stdout (logs stay on stderr), for piping into other tools:
+
+```bash
+genome-dl --accession GCF_000005845.2 --json | jq '.assemblies[].accession'
+```
 
 ### Accession behavior
 
@@ -64,7 +72,16 @@ downloaded assembly.
 | `-F, --force` | off | Overwrite existing files. |
 | `--dry-run` | off | List assemblies without downloading. |
 | `--progress` | off | Show per-file download progress. |
-| `--api-key` | `$NCBI_API_KEY` | NCBI API key (raises rate limits). |
+| `--json` | off | Emit the run report as compact JSON to stdout for piping. |
+
+An NCBI API key is read from the `NCBI_API_KEY` environment variable (matching
+NCBI's own convention), raising the rate limit from 5 to 10 requests/second.
+There is no `--api-key` flag; export the variable instead:
+
+```bash
+export NCBI_API_KEY=your_key_here
+genome-dl --species "Escherichia coli" -o outdir
+```
 
 ### Exit codes
 

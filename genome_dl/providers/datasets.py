@@ -6,6 +6,8 @@ sequence bytes are downloaded here -- that is the FTP provider's job.
 """
 
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -15,8 +17,39 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from genome_dl.constants import ASSEMBLY_LEVELS, DATASETS_API
+from genome_dl.constants import (
+    ASSEMBLY_LEVELS,
+    DATASETS_API,
+    DATASETS_RATE_LIMIT,
+    DATASETS_RATE_LIMIT_WITH_KEY,
+)
 from genome_dl.exceptions import ApiError, EmptyResultError, TaxonError
+
+
+class _RateLimiter:
+    """Enforce a minimum interval between calls to respect an rps ceiling.
+
+    Spacing consecutive requests at least ``1 / rps`` seconds apart guarantees
+    the request rate never exceeds ``rps`` (no bursts). Thread-safe so the
+    ceiling holds even if the session is shared across download workers.
+    """
+
+    def __init__(self, rps: float):
+        self._min_interval = 1.0 / rps if rps > 0 else 0.0
+        self._lock = threading.Lock()
+        self._next_allowed = 0.0
+
+    def acquire(self) -> None:
+        """Block until the next request is allowed under the rps ceiling."""
+        if self._min_interval <= 0:
+            return
+        with self._lock:
+            now = time.monotonic()
+            wait = self._next_allowed - now
+            if wait > 0:
+                time.sleep(wait)
+                now = time.monotonic()
+            self._next_allowed = now + self._min_interval
 
 
 @dataclass
@@ -78,11 +111,14 @@ def metadata_row(asm: Assembly, files: list[Path]) -> dict:
     }
 
 
-def make_session(max_attempts: int, api_key: Optional[str]) -> requests.Session:
+def make_session(
+    max_attempts: int, api_key: Optional[str], retries: bool = True
+) -> requests.Session:
     """Create a requests session with retry/backoff and optional API key."""
     session = requests.Session()
+    total = max(max_attempts - 1, 0) if retries else 0
     retry = Retry(
-        total=max_attempts,
+        total=total,
         backoff_factor=0.5,
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=frozenset(["GET", "POST"]),
@@ -92,6 +128,8 @@ def make_session(max_attempts: int, api_key: Optional[str]) -> requests.Session:
     session.mount("http://", adapter)
     if api_key:
         session.headers["api-key"] = api_key
+    rps = DATASETS_RATE_LIMIT_WITH_KEY if api_key else DATASETS_RATE_LIMIT
+    session.rate_limiter = _RateLimiter(rps)
     return session
 
 
@@ -102,6 +140,9 @@ def _base_of(accession: str) -> str:
 
 def _request(session, method, url, context, **kwargs):
     """Perform an HTTP request, converting failures into ApiError."""
+    limiter = getattr(session, "rate_limiter", None)
+    if limiter is not None:
+        limiter.acquire()
     try:
         resp = session.request(method, url, **kwargs)
     except requests.RequestException as err:

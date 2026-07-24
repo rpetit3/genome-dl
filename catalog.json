@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-22T18:28:24.491860+00:00",
+  "generated_at": "2026-07-24T00:25:15.624503+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -55,21 +55,22 @@
             {
               "name": "limit",
               "description": "Max assemblies to download for --species (0 = no limit).",
-              "default": "DEFAULT_LIMIT"
+              "default": "10"
             },
             {
               "name": "seed",
-              "description": "Random seed for reproducible --species subsetting."
+              "description": "Random seed for reproducible --species subsetting.",
+              "default": "42"
             },
             {
               "name": "max_attempts",
               "description": "Maximum number of download attempts.",
-              "default": "DEFAULT_MAX_ATTEMPTS"
+              "default": "3"
             },
             {
               "name": "sleep",
               "description": "Seconds to sleep between download retries.",
-              "default": "DEFAULT_SLEEP"
+              "default": "10"
             },
             {
               "name": "force",
@@ -82,11 +83,6 @@
               "default": "False"
             },
             {
-              "name": "api_key",
-              "description": "NCBI API key (defaults to the NCBI_API_KEY environment variable).",
-              "default": "lambda: os.environ.get('NCBI_API_KEY')"
-            },
-            {
               "name": "outdir",
               "description": "Directory to write downloads to.",
               "default": "./"
@@ -94,12 +90,15 @@
             {
               "name": "prefix",
               "description": "Prefix for the metadata TSV file.",
-              "default": "DEFAULT_PREFIX"
+              "default": "genome-dl"
             },
             {
               "name": "cpus",
               "description": "Number of concurrent downloads.",
-              "default": "DEFAULT_CPUS"
+              "default": "3"
+            },
+            {
+              "name": "emit_json"
             },
             {
               "name": "dry_run",
@@ -123,7 +122,82 @@
             }
           ],
           "returns": null,
-          "lineno": 207
+          "lineno": 213
+        },
+        "_write_summary": {
+          "name": "_write_summary",
+          "description": "Write a run summary (version, parameters, results) for reproducibility.",
+          "args": [
+            {
+              "name": "path",
+              "annotation": "Path"
+            },
+            {
+              "name": "params",
+              "annotation": "list[tuple[str, object]]"
+            },
+            {
+              "name": "n_success",
+              "annotation": "int"
+            },
+            {
+              "name": "failures",
+              "annotation": "dict[str, str]"
+            }
+          ],
+          "returns": "None",
+          "lineno": 308
+        },
+        "_assembly_json": {
+          "name": "_assembly_json",
+          "description": "Build one assembly's JSON object: metadata_row with files as a list.",
+          "args": [
+            {
+              "name": "asm"
+            },
+            {
+              "name": "files",
+              "annotation": "list"
+            }
+          ],
+          "returns": "dict",
+          "lineno": 333
+        },
+        "_build_report": {
+          "name": "_build_report",
+          "description": "Build the machine-readable run report (version, params, results, assemblies).",
+          "args": [
+            {
+              "name": "params",
+              "annotation": "list[tuple[str, object]]"
+            },
+            {
+              "name": "assemblies",
+              "annotation": "list[dict]"
+            },
+            {
+              "name": "failures",
+              "annotation": "dict[str, str]"
+            },
+            {
+              "name": "dry_run",
+              "annotation": "bool"
+            }
+          ],
+          "returns": "dict",
+          "lineno": 340
+        },
+        "_emit_json": {
+          "name": "_emit_json",
+          "description": "Print the report to stdout as compact single-line JSON for piping.",
+          "args": [
+            {
+              "name": "report",
+              "annotation": "dict"
+            }
+          ],
+          "returns": "None",
+          "lineno": 361
         },
         "_parse_formats": {
           "name": "_parse_formats",
@@ -135,7 +209,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 293
+          "lineno": 366
         },
         "_parse_levels": {
           "name": "_parse_levels",
@@ -147,7 +221,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 306
+          "lineno": 379
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -167,7 +241,7 @@
             }
           ],
           "returns": null,
-          "lineno": 320
+          "lineno": 393
         },
         "_run_download": {
           "name": "_run_download",
@@ -203,21 +277,22 @@
             {
               "name": "limit",
               "description": "Max assemblies to download for --species (0 = no limit).",
-              "default": "DEFAULT_LIMIT"
+              "default": "10"
             },
             {
               "name": "seed",
-              "description": "Random seed for reproducible --species subsetting."
+              "description": "Random seed for reproducible --species subsetting.",
+              "default": "42"
             },
             {
               "name": "max_attempts",
               "description": "Maximum number of download attempts.",
-              "default": "DEFAULT_MAX_ATTEMPTS"
+              "default": "3"
             },
             {
               "name": "sleep",
               "description": "Seconds to sleep between download retries.",
-              "default": "DEFAULT_SLEEP"
+              "default": "10"
             },
             {
               "name": "force",
@@ -230,9 +305,7 @@
               "default": "False"
             },
             {
-              "name": "api_key",
-              "description": "NCBI API key (defaults to the NCBI_API_KEY environment variable).",
-              "default": "lambda: os.environ.get('NCBI_API_KEY')"
+              "name": "api_key"
             },
             {
               "name": "outdir",
@@ -242,12 +315,12 @@
             {
               "name": "prefix",
               "description": "Prefix for the metadata TSV file.",
-              "default": "DEFAULT_PREFIX"
+              "default": "genome-dl"
             },
             {
               "name": "cpus",
               "description": "Number of concurrent downloads.",
-              "default": "DEFAULT_CPUS"
+              "default": "3"
             },
             {
               "name": "dry_run",
@@ -255,18 +328,21 @@
               "default": "False"
             },
             {
+              "name": "emit_json"
+            },
+            {
               "name": "show_progress"
             }
           ],
           "returns": null,
-          "lineno": 359
+          "lineno": 433
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 494
+          "lineno": 657
         }
       },
       "classes": {},
@@ -281,12 +357,11 @@
       "constants": {
         "DATASETS_API": "https://api.ncbi.nlm.nih.gov/datasets/v2",
         "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
-        "DEFAULT_LIMIT": 10,
-        "DEFAULT_CPUS": 3,
-        "DEFAULT_MAX_ATTEMPTS": 3,
-        "DEFAULT_SLEEP": 10,
-        "DEFAULT_PREFIX": "genome-dl",
+        "DATASETS_RATE_LIMIT": 5,
+        "DATASETS_RATE_LIMIT_WITH_KEY": 10,
         "METADATA_SUFFIX": "-metadata.tsv",
+        "SUMMARY_SUFFIX": "-summary.txt",
+        "JSON_SUFFIX": ".json",
         "FORMATS": {
           "fasta": [
             "_genomic.fna.gz",
@@ -371,7 +446,7 @@
             "Exception"
           ],
           "init_args": [],
-          "lineno": 4
+          "lineno": 6
         },
         "ValidationError": {
           "name": "ValidationError",
@@ -380,7 +455,7 @@
             "GenomeDLError"
           ],
           "init_args": [],
-          "lineno": 10
+          "lineno": 12
         },
         "ApiError": {
           "name": "ApiError",
@@ -395,11 +470,11 @@
             },
             {
               "name": "status_code",
-              "annotation": "int",
+              "annotation": "Optional[int]",
               "default": "None"
             }
           ],
-          "lineno": 16
+          "lineno": 18
         },
         "TaxonError": {
           "name": "TaxonError",
@@ -408,7 +483,7 @@
             "GenomeDLError"
           ],
           "init_args": [],
-          "lineno": 24
+          "lineno": 26
         },
         "EmptyResultError": {
           "name": "EmptyResultError",
@@ -417,7 +492,7 @@
             "GenomeDLError"
           ],
           "init_args": [],
-          "lineno": 30
+          "lineno": 32
         },
         "DownloadError": {
           "name": "DownloadError",
@@ -432,11 +507,11 @@
             },
             {
               "name": "accession",
-              "annotation": "str",
+              "annotation": "Optional[str]",
               "default": "None"
             }
           ],
-          "lineno": 36
+          "lineno": 38
         },
         "AccessionNotFoundError": {
           "name": "AccessionNotFoundError",
@@ -451,11 +526,11 @@
             },
             {
               "name": "failed",
-              "annotation": "list[str]",
+              "annotation": "Optional[list[str]]",
               "default": "None"
             }
           ],
-          "lineno": 44
+          "lineno": 46
         },
         "PartialDownloadError": {
           "name": "PartialDownloadError",
@@ -470,16 +545,16 @@
             },
             {
               "name": "failed",
-              "annotation": "list[str]",
+              "annotation": "Optional[list[str]]",
               "default": "None"
             },
             {
               "name": "successful",
-              "annotation": "list[str]",
+              "annotation": "Optional[list[str]]",
               "default": "None"
             }
           ],
-          "lineno": 52
+          "lineno": 54
         }
       },
       "constants": {}
@@ -499,7 +574,7 @@
             }
           ],
           "returns": "Assembly",
-          "lineno": 35
+          "lineno": 68
         },
         "metadata_row": {
           "name": "metadata_row",
@@ -515,7 +590,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 50
+          "lineno": 83
         },
         "make_session": {
           "name": "make_session",
@@ -528,10 +603,15 @@
             {
               "name": "api_key",
               "annotation": "Optional[str]"
+            },
+            {
+              "name": "retries",
+              "annotation": "bool",
+              "default": "True"
             }
           ],
           "returns": "requests.Session",
-          "lineno": 81
+          "lineno": 114
         },
         "_base_of": {
           "name": "_base_of",
@@ -543,7 +623,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 98
+          "lineno": 136
         },
         "_request": {
           "name": "_request",
@@ -563,7 +643,7 @@
             }
           ],
           "returns": null,
-          "lineno": 103
+          "lineno": 141
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -579,7 +659,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 117
+          "lineno": 158
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -599,7 +679,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 160
+          "lineno": 201
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -615,7 +695,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 193
+          "lineno": 234
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
@@ -639,16 +719,28 @@
             }
           ],
           "returns": "list[Assembly]",
-          "lineno": 219
+          "lineno": 260
         }
       },
       "classes": {
+        "_RateLimiter": {
+          "name": "_RateLimiter",
+          "description": "Enforce a minimum interval between calls to respect an rps ceiling.\n\nSpacing consecutive requests at least ``1 / rps`` seconds apart guarantees\nthe request rate never exceeds ``rps`` (no bursts). Thread-safe so the\nceiling holds even if the session is shared across download workers.",
+          "bases": [],
+          "init_args": [
+            {
+              "name": "rps",
+              "annotation": "float"
+            }
+          ],
+          "lineno": 29
+        },
         "Assembly": {
           "name": "Assembly",
           "description": "A single NCBI genome assembly and its source metadata.",
           "bases": [],
           "init_args": [],
-          "lineno": 23
+          "lineno": 56
         }
       },
       "constants": {}
@@ -668,7 +760,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 24
+          "lineno": 31
         },
         "assembly_dir_url": {
           "name": "assembly_dir_url",
@@ -688,11 +780,11 @@
             }
           ],
           "returns": "str",
-          "lineno": 29
+          "lineno": 36
         },
         "resolve_dir": {
           "name": "resolve_dir",
-          "description": "Return the real FTP directory URL for an assembly.\n\nBuilds the candidate path from the (sanitized) assembly name and confirms\nit by fetching ``md5checksums.txt``. Falls back to listing the parent digit\ndirectory and matching ``{accession}_*`` if the candidate 404s.",
+          "description": "Return the FTP directory URL and parsed md5checksums for an assembly.\n\nBuilds the candidate path from the (sanitized) assembly name and confirms\nit by fetching ``md5checksums.txt``, reusing that response as the md5\nmanifest. Falls back to listing the parent digit directory and matching\n``{accession}_*`` if the candidate 404s.",
           "args": [
             {
               "name": "session",
@@ -711,8 +803,20 @@
               "annotation": "str"
             }
           ],
-          "returns": "str",
-          "lineno": 42
+          "returns": "tuple[str, dict[str, str]]",
+          "lineno": 49
+        },
+        "_parse_md5": {
+          "name": "_parse_md5",
+          "description": "Parse ``md5checksums.txt`` content into {filename: md5}.",
+          "args": [
+            {
+              "name": "text",
+              "annotation": "str"
+            }
+          ],
+          "returns": "dict[str, str]",
+          "lineno": 86
         },
         "fetch_md5": {
           "name": "fetch_md5",
@@ -728,7 +832,7 @@
             }
           ],
           "returns": "dict[str, str]",
-          "lineno": 67
+          "lineno": 98
         },
         "_download_file": {
           "name": "_download_file",
@@ -767,14 +871,18 @@
             }
           ],
           "returns": "None",
-          "lineno": 82
+          "lineno": 111
         },
         "download_assembly": {
           "name": "download_assembly",
-          "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns the list of written file paths. Formats not available for the\nassembly are logged and skipped. Raises DownloadError on hard failure.",
+          "description": "Download the requested formats for one assembly to ``{accession}.{ext}``.\n\nReturns an ``AssemblyDownload`` with the written file paths and the\nrequested formats that were unavailable. Raises DownloadError on failure.",
           "args": [
             {
               "name": "session",
+              "annotation": "requests.Session"
+            },
+            {
+              "name": "download_session",
               "annotation": "requests.Session"
             },
             {
@@ -814,11 +922,21 @@
               "default": "None"
             }
           ],
-          "returns": "list[Path]",
-          "lineno": 134
+          "returns": "AssemblyDownload",
+          "lineno": 163
         }
       },
-      "classes": {},
+      "classes": {
+        "AssemblyDownload": {
+          "name": "AssemblyDownload",
+          "description": "Result of downloading one assembly's requested formats.",
+          "bases": [
+            "NamedTuple"
+          ],
+          "init_args": [],
+          "lineno": 24
+        }
+      },
       "constants": {}
     },
     "genome_dl.utils": {
@@ -837,7 +955,7 @@
             }
           ],
           "returns": "Optional[str]",
-          "lineno": 16
+          "lineno": 17
         },
         "parse_accession": {
           "name": "parse_accession",
@@ -850,7 +968,7 @@
             }
           ],
           "returns": "tuple[str, Optional[int]]",
-          "lineno": 41
+          "lineno": 42
         },
         "read_accessions": {
           "name": "read_accessions",
@@ -863,7 +981,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 68
+          "lineno": 69
         },
         "write_tsv": {
           "name": "write_tsv",
@@ -886,7 +1004,25 @@
             }
           ],
           "returns": "None",
-          "lineno": 89
+          "lineno": 93
+        },
+        "write_json": {
+          "name": "write_json",
+          "description": "Serialize a dict to a pretty-printed JSON file.\n\nNon-JSON-native values (e.g. Path) are stringified via ``default=str``.\n\nArgs:\n    data (dict): The object to serialize.\n    path (str): Output JSON path.",
+          "args": [
+            {
+              "name": "data",
+              "annotation": "dict",
+              "description": "The object to serialize."
+            },
+            {
+              "name": "path",
+              "annotation": "str",
+              "description": "Output JSON path."
+            }
+          ],
+          "returns": "None",
+          "lineno": 116
         }
       },
       "classes": {},
@@ -924,27 +1060,27 @@
     },
     {
       "name": "--limit",
-      "default": "DEFAULT_LIMIT",
+      "default": 10,
       "type": "int",
       "help": "Max assemblies to download for --species (0 = no limit)."
     },
     {
       "name": "--seed",
-      "default": null,
+      "default": 42,
       "type": "int",
       "help": "Random seed for reproducible --species subsetting."
     },
     {
       "name": "--max-attempts",
       "short": "-m",
-      "default": "DEFAULT_MAX_ATTEMPTS",
+      "default": 3,
       "type": "int",
       "help": "Maximum number of download attempts."
     },
     {
       "name": "--sleep",
       "short": "-s",
-      "default": "DEFAULT_SLEEP",
+      "default": 10,
       "type": "int",
       "help": "Seconds to sleep between download retries."
     },
@@ -961,11 +1097,6 @@
       "help": "Skip MD5 validation of downloaded files."
     },
     {
-      "name": "--api-key",
-      "default": "lambda: os.environ.get('NCBI_API_KEY')",
-      "help": "NCBI API key (defaults to the NCBI_API_KEY environment variable)."
-    },
-    {
       "name": "--outdir",
       "short": "-o",
       "default": "./",
@@ -973,14 +1104,19 @@
     },
     {
       "name": "--prefix",
-      "default": "DEFAULT_PREFIX",
+      "default": "genome-dl",
       "help": "Prefix for the metadata TSV file."
     },
     {
       "name": "--cpus",
-      "default": "DEFAULT_CPUS",
+      "default": 3,
       "type": "int",
       "help": "Number of concurrent downloads."
+    },
+    {
+      "name": "--json",
+      "is_flag": true,
+      "help": "Emit the run report as compact JSON to stdout for piping into other tools."
     },
     {
       "name": "--dry-run",
@@ -1046,7 +1182,7 @@
         },
         {
           "name": "status_code",
-          "annotation": "int",
+          "annotation": "Optional[int]",
           "default": "None"
         }
       ]
@@ -1077,7 +1213,7 @@
         },
         {
           "name": "accession",
-          "annotation": "str",
+          "annotation": "Optional[str]",
           "default": "None"
         }
       ]
@@ -1094,7 +1230,7 @@
         },
         {
           "name": "failed",
-          "annotation": "list[str]",
+          "annotation": "Optional[list[str]]",
           "default": "None"
         }
       ]
@@ -1111,12 +1247,12 @@
         },
         {
           "name": "failed",
-          "annotation": "list[str]",
+          "annotation": "Optional[list[str]]",
           "default": "None"
         },
         {
           "name": "successful",
-          "annotation": "list[str]",
+          "annotation": "Optional[list[str]]",
           "default": "None"
         }
       ]
@@ -1125,12 +1261,11 @@
   "constants": {
     "DATASETS_API": "https://api.ncbi.nlm.nih.gov/datasets/v2",
     "FTP_BASE": "https://ftp.ncbi.nlm.nih.gov/genomes",
-    "DEFAULT_LIMIT": 10,
-    "DEFAULT_CPUS": 3,
-    "DEFAULT_MAX_ATTEMPTS": 3,
-    "DEFAULT_SLEEP": 10,
-    "DEFAULT_PREFIX": "genome-dl",
+    "DATASETS_RATE_LIMIT": 5,
+    "DATASETS_RATE_LIMIT_WITH_KEY": 10,
     "METADATA_SUFFIX": "-metadata.tsv",
+    "SUMMARY_SUFFIX": "-summary.txt",
+    "JSON_SUFFIX": ".json",
     "FORMATS": {
       "fasta": [
         "_genomic.fna.gz",

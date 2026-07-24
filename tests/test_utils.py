@@ -1,9 +1,17 @@
 """Tests for genome_dl.utils."""
 
+import json
+
 import pytest
 
 from genome_dl.exceptions import ValidationError
-from genome_dl.utils import md5sum, parse_accession, read_accessions, write_tsv
+from genome_dl.utils import (
+    md5sum,
+    parse_accession,
+    read_accessions,
+    write_json,
+    write_tsv,
+)
 
 
 class TestParseAccession:
@@ -43,6 +51,10 @@ class TestReadAccessions:
             "GCA_000001.1",
         ]
 
+    def test_missing_file_raises_validationerror(self, tmp_path):
+        with pytest.raises(ValidationError):
+            read_accessions(str(tmp_path / "does-not-exist.txt"))
+
 
 class TestMd5sum:
     def test_matches_known_value(self, tmp_path):
@@ -68,3 +80,14 @@ class TestWriteTsv:
         assert lines[1] == "1\t2"
         # missing key filled with empty string, extra key "c" dropped
         assert lines[2] == "3\t"
+
+
+class TestWriteJson:
+    def test_roundtrip_stringifies_paths(self, tmp_path):
+        out = tmp_path / "report.json"
+        data = {"outdir": tmp_path, "items": [1, 2, 3], "name": "x"}
+        write_json(data, str(out))
+        text = out.read_text()
+        assert text.endswith("\n")
+        loaded = json.loads(text)
+        assert loaded == {"outdir": str(tmp_path), "items": [1, 2, 3], "name": "x"}

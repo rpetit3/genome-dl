@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Optional, Union
@@ -77,12 +78,15 @@ def read_accessions(path: PathLike) -> list[str]:
         list[str]: The stripped, non-comment, non-blank lines.
     """
     accessions = []
-    with open(path) as fh:
-        for line in fh:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            accessions.append(stripped)
+    try:
+        with open(path) as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                accessions.append(stripped)
+    except OSError as err:
+        raise ValidationError(f"cannot read accessions file {path!r}: {err}") from err
     return accessions
 
 
@@ -107,3 +111,17 @@ def write_tsv(rows: list[dict], path: str, columns: list[str]) -> None:
         writer.writeheader()
         for row in rows:
             writer.writerow({col: row.get(col, "") for col in columns})
+
+
+def write_json(data: dict, path: str) -> None:
+    """Serialize a dict to a pretty-printed JSON file.
+
+    Non-JSON-native values (e.g. Path) are stringified via ``default=str``.
+
+    Args:
+        data (dict): The object to serialize.
+        path (str): Output JSON path.
+    """
+    with open(path, "w") as fh:
+        json.dump(data, fh, indent=2, default=str)
+        fh.write("\n")

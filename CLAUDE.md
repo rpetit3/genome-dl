@@ -17,6 +17,17 @@ alongside a metadata TSV. It is intended to replace `ncbi-genome-download` in Ba
 
 ## Quick Reference
 
+Always check for and use the `genome-dl` conda environment first (it has the
+project's dependencies, including `pytest`, `ruff`, and `just`):
+
+```bash
+# Activate the project's conda env before running anything
+conda activate genome-dl
+# If it does not exist, create it, then install deps with poetry
+```
+
+With that environment active:
+
 ```bash
 # Install dependencies
 poetry install

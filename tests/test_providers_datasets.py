@@ -1,5 +1,6 @@
 """Tests for genome_dl.providers.datasets."""
 
+import time
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import responses
 from genome_dl.constants import DATASETS_API
 from genome_dl.exceptions import ApiError, EmptyResultError, TaxonError
 from genome_dl.providers.datasets import (
+    _RateLimiter,
     list_taxon_assemblies,
     make_session,
     metadata_row,
@@ -202,3 +204,42 @@ class TestListTaxonAssemblies:
         session = make_session(3, None)
         with pytest.raises(EmptyResultError):
             list_taxon_assemblies(session, "Escherichia coli", "refseq", ["all"])
+
+
+class TestMakeSession:
+    def test_total_attempts_semantics(self):
+        adapter = make_session(3, None).get_adapter("https://x")
+        assert adapter.max_retries.total == 2
+
+    def test_single_attempt_no_retry(self):
+        adapter = make_session(1, None).get_adapter("https://x")
+        assert adapter.max_retries.total == 0
+
+    def test_retries_disabled(self):
+        adapter = make_session(3, None, retries=False).get_adapter("https://x")
+        assert adapter.max_retries.total == 0
+
+    def test_default_rate_limit_is_5_rps(self):
+        session = make_session(3, None)
+        assert session.rate_limiter._min_interval == pytest.approx(1 / 5)
+
+    def test_api_key_raises_to_10_rps(self):
+        session = make_session(3, "SECRET")
+        assert session.rate_limiter._min_interval == pytest.approx(1 / 10)
+
+
+class TestRateLimiter:
+    def test_spaces_consecutive_calls(self):
+        limiter = _RateLimiter(50)  # 0.02s minimum interval
+        start = time.monotonic()
+        for _ in range(3):
+            limiter.acquire()
+        # 3 calls => at least 2 inter-call intervals of 0.02s.
+        assert time.monotonic() - start >= 0.04
+
+    def test_nonpositive_rps_never_sleeps(self):
+        limiter = _RateLimiter(0)
+        start = time.monotonic()
+        for _ in range(5):
+            limiter.acquire()
+        assert time.monotonic() - start < 0.01

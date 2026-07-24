@@ -4,13 +4,16 @@
 DATASETS_API = "https://api.ncbi.nlm.nih.gov/datasets/v2"
 FTP_BASE = "https://ftp.ncbi.nlm.nih.gov/genomes"
 
-# Defaults
-DEFAULT_LIMIT = 10
-DEFAULT_CPUS = 3
-DEFAULT_MAX_ATTEMPTS = 3
-DEFAULT_SLEEP = 10
-DEFAULT_PREFIX = "genome-dl"
+# NCBI Datasets API rate limits in requests per second (rps). The API allows
+# 5 rps by default and 10 rps when a valid API key is supplied.
+# https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/api-keys/
+DATASETS_RATE_LIMIT = 5
+DATASETS_RATE_LIMIT_WITH_KEY = 10
+
+# Output naming
 METADATA_SUFFIX = "-metadata.tsv"
+SUMMARY_SUFFIX = "-summary.txt"
+JSON_SUFFIX = ".json"
 
 # User format -> (FTP source-name suffix, output extension).
 # Verified against the live FTP assembly directory listing.

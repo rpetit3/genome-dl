@@ -1,9 +1,11 @@
 #! /usr/bin/env python3
+import json
 import logging
 import os
 import random
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 
 import rich_click as click
@@ -13,6 +15,7 @@ from rich.progress import (
     BarColumn,
     DownloadColumn,
     Progress,
+    TaskProgressColumn,
     TextColumn,
     TransferSpeedColumn,
 )
@@ -20,15 +23,12 @@ from rich.progress import (
 import genome_dl
 from genome_dl.constants import (
     ASSEMBLY_LEVELS,
-    DEFAULT_CPUS,
-    DEFAULT_LIMIT,
-    DEFAULT_MAX_ATTEMPTS,
-    DEFAULT_PREFIX,
-    DEFAULT_SLEEP,
     FORMATS,
     FTP_BASE,
+    JSON_SUFFIX,
     METADATA_COLUMNS,
     METADATA_SUFFIX,
+    SUMMARY_SUFFIX,
 )
 from genome_dl.exceptions import (
     AccessionNotFoundError,
@@ -49,7 +49,11 @@ from genome_dl.providers.datasets import (
     verify_taxon,
 )
 from genome_dl.providers.ftp import download_assembly
-from genome_dl.utils import parse_accession, read_accessions, write_tsv
+from genome_dl.utils import parse_accession, read_accessions, write_json, write_tsv
+
+# Shared stderr console so log lines and the live progress display coordinate
+# instead of clobbering each other.
+CONSOLE = Console(stderr=True)
 
 click.rich_click.USE_RICH_MARKUP = True
 click.rich_click.OPTION_GROUPS = {
@@ -75,7 +79,6 @@ click.rich_click.OPTION_GROUPS = {
                 "--sleep",
                 "--force",
                 "--ignore",
-                "--api-key",
             ],
         },
         {
@@ -86,6 +89,7 @@ click.rich_click.OPTION_GROUPS = {
                 "--cpus",
                 "--dry-run",
                 "--progress",
+                "--json",
                 "--silent",
                 "--verbose",
                 "--version",
@@ -134,21 +138,22 @@ click.rich_click.OPTION_GROUPS = {
 )
 @click.option(
     "--limit",
-    default=DEFAULT_LIMIT,
+    default=10,
     show_default=True,
     type=int,
     help="Max assemblies to download for --species (0 = no limit).",
 )
 @click.option(
     "--seed",
-    default=None,
+    default=42,
+    show_default=True,
     type=int,
     help="Random seed for reproducible --species subsetting.",
 )
 @click.option(
     "-m",
     "--max-attempts",
-    default=DEFAULT_MAX_ATTEMPTS,
+    default=3,
     show_default=True,
     type=int,
     help="Maximum number of download attempts.",
@@ -156,7 +161,7 @@ click.rich_click.OPTION_GROUPS = {
 @click.option(
     "-s",
     "--sleep",
-    default=DEFAULT_SLEEP,
+    default=10,
     show_default=True,
     type=int,
     help="Seconds to sleep between download retries.",
@@ -175,11 +180,6 @@ click.rich_click.OPTION_GROUPS = {
     help="Skip MD5 validation of downloaded files.",
 )
 @click.option(
-    "--api-key",
-    default=lambda: os.environ.get("NCBI_API_KEY"),
-    help="NCBI API key (defaults to the NCBI_API_KEY environment variable).",
-)
-@click.option(
     "-o",
     "--outdir",
     default="./",
@@ -188,16 +188,22 @@ click.rich_click.OPTION_GROUPS = {
 )
 @click.option(
     "--prefix",
-    default=DEFAULT_PREFIX,
+    default="genome-dl",
     show_default=True,
     help="Prefix for the metadata TSV file.",
 )
 @click.option(
     "--cpus",
-    default=DEFAULT_CPUS,
+    default=3,
     show_default=True,
     type=int,
     help="Number of concurrent downloads.",
+)
+@click.option(
+    "--json",
+    "emit_json",
+    is_flag=True,
+    help="Emit the run report as compact JSON to stdout for piping into other tools.",
 )
 @click.option("--dry-run", is_flag=True, help="List assemblies without downloading.")
 @click.option("--progress", is_flag=True, help="Show per-file download progress.")
@@ -217,10 +223,10 @@ def genomedl(
     sleep,
     force,
     ignore_md5,
-    api_key,
     outdir,
     prefix,
     cpus,
+    emit_json,
     dry_run,
     progress,
     silent,
@@ -234,7 +240,7 @@ def genomedl(
             handlers=[
                 RichHandler(
                     rich_tracebacks=True,
-                    console=Console(stderr=True),
+                    console=CONSOLE,
                     log_time_format="%Y-%m-%d %H:%M:%S",
                 )
             ],
@@ -242,6 +248,11 @@ def genomedl(
     root_logger.setLevel(
         logging.ERROR if silent else logging.DEBUG if verbose else logging.INFO
     )
+
+    if not verbose:
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
+
+    api_key = os.environ.get("NCBI_API_KEY")
 
     try:
         _run_download(
@@ -262,8 +273,12 @@ def genomedl(
             prefix=prefix,
             cpus=cpus,
             dry_run=dry_run,
+            emit_json=emit_json,
             show_progress=progress,
         )
+    except KeyboardInterrupt:
+        logging.warning("Aborted by user.")
+        sys.exit(130)
     except ValidationError as e:
         logging.error(str(e))
         sys.exit(1)
@@ -288,6 +303,64 @@ def genomedl(
     except GenomeDLError as e:
         logging.error(f"Error: {e}")
         sys.exit(1)
+
+
+def _write_summary(
+    path: Path,
+    params: list[tuple[str, object]],
+    n_success: int,
+    failures: dict[str, str],
+) -> None:
+    """Write a run summary (version, parameters, results) for reproducibility."""
+    lines = [
+        f"genome-dl {genome_dl.__version__}",
+        f"Run at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "Parameters:",
+    ]
+    lines += [f"    --{flag} {value}" for flag, value in params]
+    lines += [
+        "",
+        "Results:",
+        f"    Assemblies downloaded: {n_success}",
+        f"    Assemblies failed: {len(failures)}",
+    ]
+    if failures:
+        lines.append(f"    Failed: {', '.join(failures)}")
+    path.write_text("\n".join(lines) + "\n")
+
+
+def _assembly_json(asm, files: list) -> dict:
+    """Build one assembly's JSON object: metadata_row with files as a list."""
+    row = metadata_row(asm, files)
+    row["files"] = sorted(p.name for p in files)
+    return row
+
+
+def _build_report(
+    params: list[tuple[str, object]],
+    assemblies: list[dict],
+    failures: dict[str, str],
+    dry_run: bool,
+) -> dict:
+    """Build the machine-readable run report (version, params, results, assemblies)."""
+    return {
+        "genome_dl_version": genome_dl.__version__,
+        "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "dry_run": dry_run,
+        "parameters": {flag: value for flag, value in params},
+        "results": {
+            "downloaded": 0 if dry_run else len(assemblies),
+            "failed": len(failures),
+            "failures": failures,
+        },
+        "assemblies": assemblies,
+    }
+
+
+def _emit_json(report: dict) -> None:
+    """Print the report to stdout as compact single-line JSON for piping."""
+    print(json.dumps(report, separators=(",", ":"), default=str))
 
 
 def _parse_formats(formats: str) -> list[str]:
@@ -343,6 +416,7 @@ def _resolve_targets(session, accession, accessions, failures):
     for token, (base, version) in parsed.items():
         asm, action = select_for_input(base, version, resolved.get(base, {}))
         if action == "selected":
+            logging.info(f"Resolved {token} to {asm.accession} {asm.organism_name}")
             targets.append(asm)
         elif action == "superseded":
             logging.warning(f"{token} is superseded; selecting {asm.accession}")
@@ -374,6 +448,7 @@ def _run_download(
     prefix,
     cpus,
     dry_run,
+    emit_json,
     show_progress,
 ):
     """Core workflow. Raises GenomeDLError subclasses handled by the CLI."""
@@ -394,9 +469,42 @@ def _run_download(
     fmt_list = _parse_formats(formats)
     level_list = _parse_levels(assembly_level)
 
+    if dry_run:
+        logging.warning(
+            "DRY RUN ACTIVE, showing what would be downloaded. "
+            "Re-run without '--dry-run' to fetch files."
+        )
+
     session = make_session(max_attempts, api_key)
+    download_session = make_session(max_attempts, api_key, retries=False)
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
+
+    summary_params: list[tuple[str, object]] = []
+    if species:
+        summary_params += [
+            ("species", species),
+            ("section", section),
+            ("assembly-level", assembly_level),
+            ("limit", limit),
+            ("seed", seed),
+        ]
+    elif accession:
+        summary_params.append(("accession", accession))
+    else:
+        summary_params.append(("accessions", accessions))
+    summary_params += [
+        ("formats", formats),
+        ("max-attempts", max_attempts),
+        ("sleep", sleep),
+        ("force", force),
+        ("ignore", ignore_md5),
+        ("api-key", "****" if api_key else None),
+        ("outdir", outdir),
+        ("prefix", prefix),
+        ("cpus", cpus),
+        ("progress", show_progress),
+    ]
 
     failures: dict[str, str] = {}
 
@@ -407,13 +515,19 @@ def _run_download(
         logging.info(f"Found {len(targets)} assemblies for {taxon['name']}")
         if limit > 0 and len(targets) > limit:
             targets = random.Random(seed).sample(targets, limit)
-            logging.info(f"Randomly selected {len(targets)} assemblies (limit {limit})")
+            logging.info(
+                f"Randomly selected {len(targets)} assemblies (--limit {limit} --seed {seed})"
+            )
     else:
         targets = _resolve_targets(session, accession, accessions, failures)
 
     if dry_run:
-        for asm in targets:
-            print(f"{asm.accession}\t{asm.organism_name}\t{asm.assembly_name}")
+        assemblies = [_assembly_json(asm, []) for asm in targets]
+        if emit_json:
+            _emit_json(_build_report(summary_params, assemblies, failures, True))
+        else:
+            for asm in targets:
+                print(f"{asm.accession}\t{asm.organism_name}\t{asm.assembly_name}")
         if failures and not targets:
             raise AccessionNotFoundError(
                 f"{len(failures)} accession(s) failed: {', '.join(failures)}",
@@ -427,6 +541,15 @@ def _run_download(
             )
         return
 
+    if targets:
+        n_asm = len(targets)
+        n_formats = len(fmt_list)
+        which_format = (
+            f"'{formats}' file" if n_formats == 1 else f"{n_formats} file formats"
+        )
+        who = targets[0].accession if n_asm == 1 else f"{n_asm} assemblies"
+        logging.info(f"Downloading {which_format} for {who} to {outdir}")
+
     successful: list[tuple] = []
     total = len(targets)
     progress = None
@@ -435,39 +558,67 @@ def _run_download(
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             DownloadColumn(),
+            TaskProgressColumn(),
             TransferSpeedColumn(),
-            console=Console(stderr=True),
+            console=CONSOLE,
         )
         progress.start()
 
+    executor = ThreadPoolExecutor(max_workers=cpus)
     try:
-        with ThreadPoolExecutor(max_workers=cpus) as executor:
-            future_to_asm = {
-                executor.submit(
-                    download_assembly,
-                    session,
-                    asm,
-                    fmt_list,
-                    outdir,
-                    FTP_BASE,
-                    force,
-                    ignore_md5,
-                    max_attempts,
-                    sleep,
-                    progress,
-                ): asm
-                for asm in targets
-            }
-            for i, future in enumerate(as_completed(future_to_asm), start=1):
-                asm = future_to_asm[future]
-                try:
-                    files = future.result()
-                    successful.append((asm, files))
-                    logging.info(f"[{i}/{total}] {asm.accession} {asm.organism_name}")
-                except DownloadError as e:
-                    logging.error(f"[{i}/{total}] {asm.accession} failed: {e}")
-                    failures[asm.accession] = "download"
+        future_to_asm = {
+            executor.submit(
+                download_assembly,
+                session,
+                download_session,
+                asm,
+                fmt_list,
+                outdir,
+                FTP_BASE,
+                force,
+                ignore_md5,
+                max_attempts,
+                sleep,
+                progress,
+            ): asm
+            for asm in targets
+        }
+        for i, future in enumerate(as_completed(future_to_asm), start=1):
+            asm = future_to_asm[future]
+            try:
+                result = future.result()
+                successful.append((asm, result.files))
+                n = len(result.files)
+                noun = "file" if n == 1 else "files"
+                extra = ""
+                if result.unavailable:
+                    u = len(result.unavailable)
+                    fnoun = "format" if u == 1 else "formats"
+                    extra = f", {u} {fnoun} unavailable"
+                log = logging.warning if n == 0 else logging.info
+                log(
+                    f"[{i}/{total}] {asm.accession} {asm.organism_name} "
+                    f"({n} {noun}{extra})"
+                )
+            except DownloadError as e:
+                logging.error(f"[{i}/{total}] {asm.accession} failed: {e}")
+                failures[asm.accession] = "download"
+    except KeyboardInterrupt:
+        logging.warning(
+            "Interrupt received; cancelling queued downloads and waiting for "
+            "in-flight files to finish. Press Ctrl-C again to force-quit "
+            "(incomplete '.part' files may remain)."
+        )
+        try:
+            executor.shutdown(wait=True, cancel_futures=True)
+        except KeyboardInterrupt:
+            if progress is not None:
+                progress.stop()
+            logging.warning("Force-quit requested; exiting now.")
+            os._exit(130)
+        raise
     finally:
+        executor.shutdown(wait=True)
         if progress is not None:
             progress.stop()
 
@@ -476,6 +627,18 @@ def _run_download(
         tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
         write_tsv(rows, str(tsv_path), METADATA_COLUMNS)
         logging.info(f"Wrote metadata to {tsv_path}")
+
+    summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
+    _write_summary(summary_path, summary_params, len(successful), failures)
+    logging.info(f"Wrote run summary to {summary_path}")
+
+    json_path = outdir / f"{prefix}{JSON_SUFFIX}"
+    assemblies = [_assembly_json(asm, files) for asm, files in successful]
+    report = _build_report(summary_params, assemblies, failures, False)
+    write_json(report, str(json_path))
+    logging.info(f"Wrote JSON report to {json_path}")
+    if emit_json:
+        _emit_json(report)
 
     if failures and not successful:
         raise AccessionNotFoundError(

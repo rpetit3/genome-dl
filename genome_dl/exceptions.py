@@ -1,5 +1,7 @@
 """Custom exceptions for genome-dl."""
 
+from typing import Optional
+
 
 class GenomeDLError(Exception):
     """Base exception for genome-dl."""
@@ -16,7 +18,7 @@ class ValidationError(GenomeDLError):
 class ApiError(GenomeDLError):
     """Error from the NCBI Datasets REST API."""
 
-    def __init__(self, message: str, status_code: int = None):
+    def __init__(self, message: str, status_code: Optional[int] = None):
         self.status_code = status_code
         super().__init__(message)
 
@@ -36,7 +38,7 @@ class EmptyResultError(GenomeDLError):
 class DownloadError(GenomeDLError):
     """Error while downloading assembly files."""
 
-    def __init__(self, message: str, accession: str = None):
+    def __init__(self, message: str, accession: Optional[str] = None):
         self.accession = accession
         super().__init__(message)
 
@@ -44,7 +46,7 @@ class DownloadError(GenomeDLError):
 class AccessionNotFoundError(GenomeDLError):
     """All requested accessions failed to resolve or download."""
 
-    def __init__(self, message: str, failed: list[str] = None):
+    def __init__(self, message: str, failed: Optional[list[str]] = None):
         self.failed = failed or []
         super().__init__(message)
 
@@ -53,7 +55,10 @@ class PartialDownloadError(GenomeDLError):
     """Some assemblies were downloaded but others failed."""
 
     def __init__(
-        self, message: str, failed: list[str] = None, successful: list[str] = None
+        self,
+        message: str,
+        failed: Optional[list[str]] = None,
+        successful: Optional[list[str]] = None,
     ):
         self.failed = failed or []
         self.successful = successful or []

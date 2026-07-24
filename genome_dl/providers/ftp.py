@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import requests
 
@@ -19,6 +19,13 @@ from genome_dl.providers.datasets import Assembly
 from genome_dl.utils import md5sum
 
 CHUNK_SIZE = 1024 * 1024
+
+
+class AssemblyDownload(NamedTuple):
+    """Result of downloading one assembly's requested formats."""
+
+    files: list[Path]
+    unavailable: list[str]
 
 
 def _sanitize(assembly_name: str) -> str:
@@ -41,42 +48,64 @@ def assembly_dir_url(base_url: str, accession: str, assembly_name: str) -> str:
 
 def resolve_dir(
     session: requests.Session, base_url: str, accession: str, assembly_name: str
-) -> str:
-    """Return the real FTP directory URL for an assembly.
+) -> tuple[str, dict[str, str]]:
+    """Return the FTP directory URL and parsed md5checksums for an assembly.
 
     Builds the candidate path from the (sanitized) assembly name and confirms
-    it by fetching ``md5checksums.txt``. Falls back to listing the parent digit
-    directory and matching ``{accession}_*`` if the candidate 404s.
+    it by fetching ``md5checksums.txt``, reusing that response as the md5
+    manifest. Falls back to listing the parent digit directory and matching
+    ``{accession}_*`` if the candidate 404s.
     """
     candidate = assembly_dir_url(base_url, accession, assembly_name)
-    resp = session.get(f"{candidate}md5checksums.txt")
+    try:
+        resp = session.get(f"{candidate}md5checksums.txt")
+    except requests.RequestException as err:
+        raise DownloadError(
+            f"could not reach FTP for {accession}: {err}", accession=accession
+        ) from err
     if resp.ok:
-        return candidate
+        return candidate, _parse_md5(resp.text)
 
     # Fallback: list the parent directory and find the accession's subdir.
     parent = candidate.rsplit("/", 2)[0] + "/"
-    listing = session.get(parent)
+    try:
+        listing = session.get(parent)
+    except requests.RequestException as err:
+        raise DownloadError(
+            f"could not reach FTP for {accession}: {err}", accession=accession
+        ) from err
     if listing.ok:
         match = re.search(rf'href="({re.escape(accession)}_[^"/]+)/"', listing.text)
         if match:
-            return f"{parent}{match.group(1)}/"
+            dir_url = f"{parent}{match.group(1)}/"
+            return dir_url, fetch_md5(session, dir_url)
 
     raise DownloadError(f"no FTP directory for {accession}", accession=accession)
 
 
-def fetch_md5(session: requests.Session, dir_url: str) -> dict[str, str]:
-    """Fetch and parse ``md5checksums.txt`` into {filename: md5}."""
-    resp = session.get(f"{dir_url}md5checksums.txt")
-    if not resp.ok:
-        raise DownloadError(f"could not fetch md5checksums.txt from {dir_url}")
+def _parse_md5(text: str) -> dict[str, str]:
+    """Parse ``md5checksums.txt`` content into {filename: md5}."""
     md5s: dict[str, str] = {}
-    for line in resp.text.splitlines():
+    for line in text.splitlines():
         parts = line.split()
         if len(parts) != 2:
             continue
         checksum, name = parts
         md5s[name.lstrip("./")] = checksum
     return md5s
+
+
+def fetch_md5(session: requests.Session, dir_url: str) -> dict[str, str]:
+    """Fetch and parse ``md5checksums.txt`` into {filename: md5}."""
+    try:
+        resp = session.get(f"{dir_url}md5checksums.txt")
+    except requests.RequestException as err:
+        raise DownloadError(
+            f"could not fetch md5checksums.txt from {dir_url}: {err}"
+        ) from err
+    if not resp.ok:
+        raise DownloadError(f"could not fetch md5checksums.txt from {dir_url}")
+    return _parse_md5(resp.text)
 
 
 def _download_file(
@@ -133,6 +162,7 @@ def _download_file(
 
 def download_assembly(
     session: requests.Session,
+    download_session: requests.Session,
     asm: Assembly,
     formats: list[str],
     outdir: Path,
@@ -142,17 +172,17 @@ def download_assembly(
     max_attempts: int,
     sleep: int,
     progress=None,
-) -> list[Path]:
+) -> AssemblyDownload:
     """Download the requested formats for one assembly to ``{accession}.{ext}``.
 
-    Returns the list of written file paths. Formats not available for the
-    assembly are logged and skipped. Raises DownloadError on hard failure.
+    Returns an ``AssemblyDownload`` with the written file paths and the
+    requested formats that were unavailable. Raises DownloadError on failure.
     """
-    dir_url = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
-    md5s = fetch_md5(session, dir_url)
+    dir_url, md5s = resolve_dir(session, base_url, asm.accession, asm.assembly_name)
     san = _sanitize(asm.assembly_name)
 
     written: list[Path] = []
+    unavailable: list[str] = []
     for fmt in formats:
         suffix, ext = FORMATS[fmt]
         src = f"{asm.accession}_{san}{suffix}"
@@ -161,7 +191,7 @@ def download_assembly(
         verify = None if ignore_md5 else expected
 
         if expected is None:
-            logging.warning(f"{fmt} not available for {asm.accession}")
+            unavailable.append(fmt)
             continue
 
         if (
@@ -174,7 +204,7 @@ def download_assembly(
             continue
 
         _download_file(
-            session,
+            download_session,
             f"{dir_url}{src}",
             target,
             verify,
@@ -185,4 +215,4 @@ def download_assembly(
         )
         written.append(target)
 
-    return written
+    return AssemblyDownload(written, unavailable)

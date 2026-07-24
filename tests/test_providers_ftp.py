@@ -3,6 +3,7 @@
 import hashlib
 
 import pytest
+import requests
 import responses
 
 from genome_dl.constants import FTP_BASE
@@ -58,6 +59,17 @@ class TestFetchMd5:
             "GCF_000005845.2_ASM584v2_genomic.gff.gz": "def456",
         }
 
+    @responses.activate
+    def test_network_error_raises_downloaderror(self):
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body=requests.exceptions.ConnectionError("boom"),
+        )
+        session = make_session(1, None)
+        with pytest.raises(DownloadError):
+            fetch_md5(session, DIR)
+
 
 def _md5(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
@@ -84,8 +96,10 @@ class TestDownloadAssembly:
             body=gff,
         )
         session = make_session(3, None)
-        written = download_assembly(
+        download_session = make_session(3, None, retries=False)
+        written, _ = download_assembly(
             session,
+            download_session,
             make_assembly(),
             ["fasta", "gff"],
             tmp_path,
@@ -122,8 +136,10 @@ class TestDownloadAssembly:
             body=rna,
         )
         session = make_session(3, None)
-        written = download_assembly(
+        download_session = make_session(3, None, retries=False)
+        written, _ = download_assembly(
             session,
+            download_session,
             make_assembly(),
             ["cds", "rna"],
             tmp_path,
@@ -150,8 +166,10 @@ class TestDownloadAssembly:
             body=fna,
         )
         session = make_session(3, None)
-        written = download_assembly(
+        download_session = make_session(3, None, retries=False)
+        written, unavailable = download_assembly(
             session,
+            download_session,
             make_assembly(),
             ["fasta", "gff"],  # gff not in md5checksums
             tmp_path,
@@ -162,6 +180,7 @@ class TestDownloadAssembly:
             sleep=0,
         )
         assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
+        assert unavailable == ["gff"]
 
     @responses.activate
     def test_md5_mismatch_raises_after_retries(self, tmp_path):
@@ -176,9 +195,11 @@ class TestDownloadAssembly:
             body=b"WRONG",
         )
         session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
         with pytest.raises(DownloadError):
             download_assembly(
                 session,
+                download_session,
                 make_assembly(),
                 ["fasta"],
                 tmp_path,
@@ -204,8 +225,10 @@ class TestDownloadAssembly:
             body=b"FASTA",
         )
         session = make_session(3, None)
-        written = download_assembly(
+        download_session = make_session(3, None, retries=False)
+        written, unavailable = download_assembly(
             session,
+            download_session,
             make_assembly(),
             ["fasta", "gff"],  # gff not in manifest
             tmp_path,
@@ -218,4 +241,37 @@ class TestDownloadAssembly:
         # fasta downloads despite md5 mismatch (verification skipped);
         # gff is skipped as unavailable instead of hard-failing.
         assert [p.name for p in written] == ["GCF_000005845.2.fna.gz"]
+        assert unavailable == ["gff"]
         assert (tmp_path / "GCF_000005845.2.fna.gz").read_bytes() == b"FASTA"
+
+    @responses.activate
+    def test_md5checksums_fetched_once(self, tmp_path):
+        fna = b"FASTA"
+        responses.add(
+            responses.GET,
+            f"{DIR}md5checksums.txt",
+            body=f"{_md5(fna)}  ./GCF_000005845.2_ASM584v2_genomic.fna.gz\n",
+        )
+        responses.add(
+            responses.GET,
+            f"{DIR}GCF_000005845.2_ASM584v2_genomic.fna.gz",
+            body=fna,
+        )
+        session = make_session(3, None)
+        download_session = make_session(3, None, retries=False)
+        download_assembly(
+            session,
+            download_session,
+            make_assembly(),
+            ["fasta"],
+            tmp_path,
+            FTP_BASE,
+            force=False,
+            ignore_md5=False,
+            max_attempts=2,
+            sleep=0,
+        )
+        md5_hits = [
+            c for c in responses.calls if c.request.url.endswith("md5checksums.txt")
+        ]
+        assert len(md5_hits) == 1

@@ -6,7 +6,7 @@
 - **Repository**: https://github.com/rpetit3/genome-dl
 - **License**: MIT
 - **Python**: >=3.10,<3.14
-- **Modules**: 7 | **Functions**: 25 | **Classes**: 9
+- **Modules**: 7 | **Functions**: 31 | **Classes**: 11
 
 ## Architecture
 
@@ -46,7 +46,7 @@ CLI (accession / accessions file / species)
 
 ### genome_dl.cli.download
 - **Path**: `genome_dl/cli/download.py`
-- **Functions**: `genomedl`, `_parse_formats`, `_parse_levels`, `_resolve_targets`, `_run_download`, `main`
+- **Functions**: `genomedl`, `_write_summary`, `_assembly_json`, `_build_report`, `_emit_json`, `_parse_formats`, `_parse_levels`, `_resolve_targets`, `_run_download`, `main`
 
 ### genome_dl.constants
 - **Path**: `genome_dl/constants.py`
@@ -61,17 +61,18 @@ CLI (accession / accessions file / species)
 - **Path**: `genome_dl/providers/datasets.py`
 - **Description**: NCBI Datasets v2 REST API provider.
 - **Functions**: `_assembly_from_report`, `metadata_row`, `make_session`, `_base_of`, `_request`, `resolve_accessions`, `select_for_input`, `verify_taxon`, `list_taxon_assemblies`
-- **Classes**: `Assembly`
+- **Classes**: `_RateLimiter`, `Assembly`
 
 ### genome_dl.providers.ftp
 - **Path**: `genome_dl/providers/ftp.py`
 - **Description**: Direct FTP download provider for NCBI genome assemblies.
-- **Functions**: `_sanitize`, `assembly_dir_url`, `resolve_dir`, `fetch_md5`, `_download_file`, `download_assembly`
+- **Functions**: `_sanitize`, `assembly_dir_url`, `resolve_dir`, `_parse_md5`, `fetch_md5`, `_download_file`, `download_assembly`
+- **Classes**: `AssemblyDownload`
 
 ### genome_dl.utils
 - **Path**: `genome_dl/utils.py`
 - **Description**: Utility functions for genome-dl.
-- **Functions**: `md5sum`, `parse_accession`, `read_accessions`, `write_tsv`
+- **Functions**: `md5sum`, `parse_accession`, `read_accessions`, `write_tsv`, `write_json`
 
 ## CLI Options
 
@@ -83,16 +84,16 @@ CLI (accession / accessions file / species)
 | `--section` | refseq | Assembly source to query for --species. |
 | `--assembly-level` | all | Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all). |
 | `--formats` | fasta | Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all). |
-| `--limit` | DEFAULT_LIMIT | Max assemblies to download for --species (0 = no limit). |
-| `--seed` |  | Random seed for reproducible --species subsetting. |
-| `--max-attempts` (`-m`) | DEFAULT_MAX_ATTEMPTS | Maximum number of download attempts. |
-| `--sleep` (`-s`) | DEFAULT_SLEEP | Seconds to sleep between download retries. |
+| `--limit` | 10 | Max assemblies to download for --species (0 = no limit). |
+| `--seed` | 42 | Random seed for reproducible --species subsetting. |
+| `--max-attempts` (`-m`) | 3 | Maximum number of download attempts. |
+| `--sleep` (`-s`) | 10 | Seconds to sleep between download retries. |
 | `--force` (`-F`) | off | Overwrite existing files. |
 | `--ignore` (`-I`) | off | Skip MD5 validation of downloaded files. |
-| `--api-key` | lambda: os.environ.get('NCBI_API_KEY') | NCBI API key (defaults to the NCBI_API_KEY environment variable). |
 | `--outdir` (`-o`) | ./ | Directory to write downloads to. |
-| `--prefix` | DEFAULT_PREFIX | Prefix for the metadata TSV file. |
-| `--cpus` | DEFAULT_CPUS | Number of concurrent downloads. |
+| `--prefix` | genome-dl | Prefix for the metadata TSV file. |
+| `--cpus` | 3 | Number of concurrent downloads. |
+| `--json` | off | Emit the run report as compact JSON to stdout for piping into other tools. |
 | `--dry-run` | off | List assemblies without downloading. |
 | `--progress` | off | Show per-file download progress. |
 | `--silent` | off | Only critical errors will be printed. |
