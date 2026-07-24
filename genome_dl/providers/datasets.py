@@ -86,12 +86,18 @@ def _assembly_from_report(report: dict) -> Assembly:
 
 
 def metadata_row(asm: Assembly, files: list[Path]) -> dict:
-    """Flatten an assembly's report into METADATA_COLUMNS keys for the TSV."""
+    """Flatten an assembly's report into TSV keys.
+
+    Emits the fixed METADATA_COLUMNS keys plus one key per non-strain
+    infraspecific identifier present on the record (isolate, cultivar, ...);
+    the writer adds a column for each so nothing is silently dropped.
+    """
     report = asm.report
     ai = report.get("assembly_info") or {}
     org = report.get("organism") or {}
     stats = report.get("assembly_stats") or {}
-    return {
+    names = org.get("infraspecific_names") or {}
+    row = {
         "accession": report.get("accession", asm.accession),
         "source_database": report.get("source_database", "").replace(
             "SOURCE_DATABASE_", ""
@@ -101,7 +107,7 @@ def metadata_row(asm: Assembly, files: list[Path]) -> dict:
         "assembly_status": ai.get("assembly_status", ""),
         "organism_name": org.get("organism_name", ""),
         "tax_id": org.get("tax_id", ""),
-        "strain": (org.get("infraspecific_names") or {}).get("strain", ""),
+        "strain": names.get("strain", ""),
         "biosample": (ai.get("biosample") or {}).get("accession", ""),
         "bioproject": ai.get("bioproject_accession", ""),
         "submitter": ai.get("submitter", ""),
@@ -114,6 +120,14 @@ def metadata_row(asm: Assembly, files: list[Path]) -> dict:
         "gc_percent": stats.get("gc_percent", ""),
         "files": ";".join(sorted(p.name for p in files)),
     }
+    # NCBI keys the sub-species identifier under strain for most records, but
+    # MAGs/eukaryotic/environmental assemblies use siblings (isolate, cultivar,
+    # ecotype, breed, sex, ...). Surface each non-strain identifier as its own
+    # field; _write_run_outputs adds a column per key seen in the run.
+    for key, value in names.items():
+        if key != "strain" and key not in row:
+            row[key] = value
+    return row
 
 
 def make_session(
@@ -122,6 +136,7 @@ def make_session(
     retries: bool = True,
     rate_limit: bool = True,
     identity_encoding: bool = False,
+    pool_maxsize: int = 10,
 ) -> requests.Session:
     """Create a requests session with retry/backoff and optional API key."""
     session = requests.Session()
@@ -132,7 +147,7 @@ def make_session(
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=frozenset(["GET", "POST"]),
     )
-    adapter = HTTPAdapter(max_retries=retry)
+    adapter = HTTPAdapter(max_retries=retry, pool_maxsize=pool_maxsize)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
     if api_key:
@@ -310,22 +325,38 @@ def verify_taxon(session: requests.Session, name: str) -> dict:
 
 
 def list_taxon_assemblies(
-    session: requests.Session, name: str, source: str, levels: list[str]
-) -> list[Assembly]:
-    """List all assemblies for a taxon, applying source and level filters.
+    session: requests.Session,
+    name: str,
+    source: str,
+    levels: list[str],
+    limit: int = 0,
+) -> tuple[list[Assembly], int]:
+    """List assemblies for a taxon, applying source and level filters.
+
+    When ``limit`` is greater than zero, only the first ``limit`` assemblies
+    (in NCBI's default relevance order, which ranks the reference/representative
+    genome first) are fetched -- pagination stops early instead of enumerating
+    the whole taxon. A ``limit`` of zero fetches every assembly.
+
+    Returns:
+        ``(assemblies, total_count)`` where ``total_count`` is the taxon's full
+        assembly count reported by NCBI, so callers can report how many exist
+        even when only the first ``limit`` were fetched.
 
     Raises:
         EmptyResultError: If the taxon has no assemblies for the filters.
         ApiError: If the API request fails.
     """
     url = f"{DATASETS_API}/genome/taxon/{quote(name, safe='')}/dataset_report"
-    params = {"page_size": 1000}
+    page_size = min(limit, 1000) if limit > 0 else 1000
+    params = {"page_size": page_size}
     if source != "all":
         params["filters.assembly_source"] = source
     if levels != ["all"]:
         params["filters.assembly_level"] = [ASSEMBLY_LEVELS[level] for level in levels]
 
     assemblies: list[Assembly] = []
+    total_count = 0
     page_token = None
     first_page = True
     while True:
@@ -333,16 +364,21 @@ def list_taxon_assemblies(
         if page_token:
             page_params["page_token"] = page_token
         data = _request_json(session, "GET", url, "taxon report", params=page_params)
-        if first_page and not data.get("total_count"):
-            raise EmptyResultError(
-                f"no assemblies found for {name!r} with the requested filters"
-            )
+        if first_page:
+            total_count = data.get("total_count") or 0
+            if not total_count:
+                raise EmptyResultError(
+                    f"no assemblies found for {name!r} with the requested filters"
+                )
         first_page = False
         for report in data.get("reports", []) or []:
             if report.get("accession"):
                 assemblies.append(_assembly_from_report(report))
+        if limit > 0 and len(assemblies) >= limit:
+            del assemblies[limit:]
+            break
         page_token = data.get("next_page_token")
         if not page_token:
             break
-    logging.debug(f"Found {len(assemblies)} assemblies for {name!r}")
-    return assemblies
+    logging.debug(f"Fetched {len(assemblies)} of {total_count} assemblies for {name!r}")
+    return assemblies, total_count

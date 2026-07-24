@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import random
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -23,6 +22,7 @@ from rich.progress import (
 import genome_dl
 from genome_dl.constants import (
     ASSEMBLY_LEVELS,
+    CPUS_WARN_THRESHOLD,
     FORMATS,
     FTP_BASE,
     JSON_SUFFIX,
@@ -69,7 +69,6 @@ click.rich_click.OPTION_GROUPS = {
                 "--assembly-level",
                 "--formats",
                 "--limit",
-                "--seed",
             ],
         },
         {
@@ -141,14 +140,8 @@ click.rich_click.OPTION_GROUPS = {
     default=10,
     show_default=True,
     type=click.IntRange(min=0),
-    help="Max assemblies to download for --species (0 = no limit).",
-)
-@click.option(
-    "--seed",
-    default=42,
-    show_default=True,
-    type=int,
-    help="Random seed for reproducible --species subsetting.",
+    help="Download the first N assemblies for --species "
+    "(NCBI relevance order, reference first; 0 = no limit).",
 )
 @click.option(
     "-m",
@@ -203,7 +196,7 @@ click.rich_click.OPTION_GROUPS = {
     default=3,
     show_default=True,
     type=click.IntRange(min=1),
-    help="Number of concurrent downloads.",
+    help="Number of concurrent FTP downloads (values above 16 may strain NCBI).",
 )
 @click.option(
     "--json",
@@ -224,7 +217,6 @@ def genomedl(
     assembly_level,
     formats,
     limit,
-    seed,
     max_attempts,
     sleep,
     force,
@@ -270,7 +262,6 @@ def genomedl(
             assembly_level=assembly_level,
             formats=formats,
             limit=limit,
-            seed=seed,
             max_attempts=max_attempts,
             sleep=sleep,
             force=force,
@@ -599,8 +590,16 @@ def _write_run_outputs(
     """Write metadata TSV, run summary, and JSON report; optionally emit JSON."""
     if successful:
         rows = [metadata_row(asm, files) for asm, files in successful]
+        # Dynamic infraspecific columns (isolate, cultivar, ...) present in this
+        # run, inserted right after the fixed 'strain' column.
+        extra = sorted({k for row in rows for k in row} - set(METADATA_COLUMNS))
+        if extra:
+            at = METADATA_COLUMNS.index("strain") + 1
+            columns = METADATA_COLUMNS[:at] + extra + METADATA_COLUMNS[at:]
+        else:
+            columns = METADATA_COLUMNS
         tsv_path = outdir / f"{prefix}{METADATA_SUFFIX}"
-        write_tsv(rows, str(tsv_path), METADATA_COLUMNS)
+        write_tsv(rows, str(tsv_path), columns)
         logging.info(f"Wrote metadata to {tsv_path}")
 
     summary_path = outdir / f"{prefix}{SUMMARY_SUFFIX}"
@@ -624,7 +623,6 @@ def _run_download(
     assembly_level,
     formats,
     limit,
-    seed,
     max_attempts,
     sleep,
     force,
@@ -660,6 +658,12 @@ def _run_download(
             f"--prefix must be a bare filename, not a path: {prefix!r}"
         )
 
+    if cpus > CPUS_WARN_THRESHOLD:
+        logging.warning(
+            f"--cpus {cpus} exceeds {CPUS_WARN_THRESHOLD}; consider a lower value, "
+            "to play nicely with NCBI's FTP servers and avoid transient errors."
+        )
+
     if dry_run:
         logging.warning(
             "DRY RUN ACTIVE, showing what would be downloaded. "
@@ -672,13 +676,16 @@ def _run_download(
     # download session opts out of adapter retries (its own loop is
     # authoritative) and requests identity encoding so Content-Length matches
     # the bytes written.
-    ftp_session = make_session(max_attempts, None, rate_limit=False)
+    ftp_session = make_session(
+        max_attempts, None, rate_limit=False, pool_maxsize=max(cpus, 10)
+    )
     download_session = make_session(
         max_attempts,
         None,
         retries=False,
         rate_limit=False,
         identity_encoding=True,
+        pool_maxsize=max(cpus, 10),
     )
     outdir = Path(outdir).resolve()
     try:
@@ -697,7 +704,6 @@ def _run_download(
             ("section", section),
             ("assembly-level", assembly_level),
             ("limit", limit),
-            ("seed", seed),
         ]
     elif accession:
         summary_params.append(("accession", accession))
@@ -722,13 +728,16 @@ def _run_download(
     if species:
         taxon = verify_taxon(session, species)
         logging.info(f"Verified taxon: {taxon['name']} (tax_id {taxon['tax_id']})")
-        targets = list_taxon_assemblies(session, species, section, level_list)
-        logging.info(f"Found {len(targets)} assemblies for {taxon['name']}")
-        if limit > 0 and len(targets) > limit:
-            targets = random.Random(seed).sample(targets, limit)
+        targets, total = list_taxon_assemblies(
+            session, species, section, level_list, limit
+        )
+        if limit > 0 and total > limit:
             logging.info(
-                f"Randomly selected {len(targets)} assemblies (--limit {limit} --seed {seed})"
+                f"Found {total} assemblies for {taxon['name']}; "
+                f"downloading the first {len(targets)}"
             )
+        else:
+            logging.info(f"Found {total} assemblies for {taxon['name']}")
     else:
         targets = _resolve_targets(
             session, accession, accessions, failures, allow_outdated

@@ -113,6 +113,19 @@ class TestMetadataRow:
         assert row["gc_percent"] == 51
         assert row["files"] == "GCF_000005845.2.fna.gz;GCF_000005845.2.gff.gz"
 
+    def test_emits_dynamic_infraspecific_keys(self):
+        report = make_report()
+        report["organism"]["infraspecific_names"] = {
+            "isolate": "WHEZ1",
+            "sex": "female",
+        }
+        row = metadata_row(_assembly_from_report(report), [])
+        # No strain key present -> strain column empty, but the isolate/sex
+        # identifiers are surfaced as their own keys instead of being dropped.
+        assert row["strain"] == ""
+        assert row["isolate"] == "WHEZ1"
+        assert row["sex"] == "female"
+
 
 class TestResolveAccessions:
     @responses.activate
@@ -224,11 +237,39 @@ class TestListTaxonAssemblies:
             json={"total_count": 2, "reports": [make_report("GCF_000008865.2")]},
         )
         session = make_session(3, None)
-        result = list_taxon_assemblies(session, "Escherichia coli", "refseq", ["all"])
+        result, total = list_taxon_assemblies(
+            session, "Escherichia coli", "refseq", ["all"]
+        )
         assert [a.accession for a in result] == [
             "GCF_000005845.2",
             "GCF_000008865.2",
         ]
+        assert total == 2
+
+    @responses.activate
+    def test_stops_early_at_limit(self):
+        url = f"{DATASETS_API}/genome/taxon/Escherichia%20coli/dataset_report"
+        responses.add(
+            responses.GET,
+            url,
+            json={
+                "total_count": 50,
+                "reports": [
+                    make_report("GCF_000005845.2"),
+                    make_report("GCF_000008865.2"),
+                ],
+                "next_page_token": "T",
+            },
+        )
+        session = make_session(3, None)
+        result, total = list_taxon_assemblies(
+            session, "Escherichia coli", "refseq", ["all"], limit=1
+        )
+        # Truncated to the limit and pagination stopped despite a next token.
+        assert [a.accession for a in result] == ["GCF_000005845.2"]
+        assert total == 50
+        assert len(responses.calls) == 1
+        assert responses.calls[0].request.params["page_size"] == "1"
 
     @responses.activate
     def test_empty_raises(self):

@@ -168,16 +168,73 @@ Non-issues probed live and deliberately NOT filed this round (confirmed sound):
 - Concurrency/Ctrl-C, TSV/JSON metadata consistency, and `select_for_input`
   branch logic re-reviewed and confirmed sound.
 
+### Round 5 — (commit pending)
+A metadata-fidelity + scale spot-check (per R4's convergence guidance), not a
+general sweep. An independent `code-reviewer` and live NCBI probes ran
+concurrently and converged: **no critical/high bugs; the R1–R4 core is intact.**
+Three substantive findings, all fixed, plus a design simplification the user
+drove:
+- **Scale (was the deferred `--species` memory item): 10–14 GB OOM on large
+  taxa — FIXED by redefining `--limit`.** Measured live: 18,080 Salmonella
+  RefSeq assemblies retained 283 MB (~21.6 KB deep-size per `Assembly`, the
+  `report` dict dominates); *Salmonella enterica* is 648,104 assemblies total →
+  ~10–14 GB just to pick `--limit 10`, then OOM. Root design flaw: the old code
+  paged the ENTIRE taxon into memory, then `random.Random(seed).sample(...)`.
+  Fix: **`--limit` now means "the first N assemblies"** in NCBI's default
+  relevance order (reference/representative first — verified: E. coli and
+  Salmonella both return the reference genome first). `list_taxon_assemblies`
+  stops paginating once it has N (`page_size=min(limit,1000)`) and returns
+  `(assemblies, total_count)` so the "Found N; downloading first X" log still
+  reports the full population. Smoke test: `--species "Salmonella enterica"
+  --limit 2` → **36 MB peak RSS, 2 s**, downloads the reference first. `--limit
+  0` still fetches all (unavoidable, and you're then downloading everything).
+- **`--seed` REMOVED (breaking, clean cutover).** First-X is deterministic
+  within a release; there is no random subset to seed. `--seed` reproducibility
+  was always best-effort anyway (it depended on NCBI page order AND a frozen
+  population; probed live — the taxon GET order is stable-within-session but not
+  accession-sorted and not guaranteed stable across releases). Hard
+  reproducibility = pass an explicit `--accessions` list. Considered hash
+  bottom-k streaming (order-independent, growth-stable, O(limit)) but first-X is
+  simpler and the user chose it; NCBI relevance order gives better defaults than
+  a random sample.
+- **M2 (metadata fidelity): `strain` column silently dropped isolate/other
+  infraspecific identifiers — FIXED.** Live-verified: `GCA_016906955.1`
+  (`{isolate: WHEZ1, sex: female}`, no strain) and MAG `GCA_002718135.1`
+  (`{isolate: SP346}`). `metadata_row` now emits every non-strain
+  `infraspecific_names` key; `_write_run_outputs` computes the column union
+  **from the current run only** (no fixed superset — submitters can use
+  arbitrary keys) and inserts them after `strain`. `strain` stays a fixed column
+  for back-compat. Verified end-to-end: isolate run's TSV gains `isolate`+`sex`
+  columns; strain-only runs keep the standard 19.
+- **P1 (perf): connection-pool churn at `--cpus > 10` — FIXED.** `make_session`
+  takes `pool_maxsize` (default 10); the thread-shared ftp/download sessions get
+  `max(cpus, 10)` so urllib3 stops discarding connections above 10 workers.
+  `--cpus` stays unbounded (`IntRange(min=1)`) but now warns above
+  `CPUS_WARN_THRESHOLD` (16) that many parallel FTP connections strain NCBI —
+  `--cpus` is FTP-download concurrency only; the 5/10 rps API ceiling is a
+  separate main-thread `_RateLimiter` concern decoupled from it.
+- Tests: unit (metadata dynamic keys, first-X early-stop + page_size + total,
+  cpus warn/no-warn) and live integration (first-X reference-first, isolate
+  metadata). 100 unit pass, coverage 87.7%; 9 integration pass live. Catalog +
+  README + llms.txt updated (20 CLI options, `--seed` gone).
+
+Live facts confirmed this round (reuse instead of re-deriving):
+- NCBI taxon listing has **no random/shuffle sort**; `sort.field` (POST body /
+  GET query) accepts only field names with `ASCENDING`/`DESCENDING`. So a
+  1-call uniform random sample is impossible; uniform sampling requires
+  enumerating the whole population.
+- Default (unsorted) order is a **stable, reference-first relevance ranking**
+  (byte-identical on repeat calls within a session; GCA/GCF pairs adjacent when
+  `--section all`). `--section refseq` (default) returns GCF only (no pairing).
+- `total_count` is returned on the first page, so first-X can report the full
+  population size while fetching only N.
+
 
 ## Deferred / known (raise only if you think they now matter)
 
 - gpff/genpept + `_translated_cds.faa.gz` + wgs format mapping is absent from
   `constants.FORMATS` (the FTP dir does expose `_protein.gpff.gz` and
   `_translated_cds.faa.gz`).
-- Large `--species` runs page the full taxon list (retaining a full report dict
-  per assembly) before random `--limit` subsetting (~90s / high RSS for big
-  taxa). Random sampling needs the full population, but the retained reports are
-  heavy.
 - Both FTP sessions (dir/md5 resolve + byte download) are still shared across
   download threads (safe in practice on NCBI — no cookies/header mutation). The
   api-key leak to the FTP host is FIXED in R3 (L1); only the thread-sharing
@@ -221,6 +278,44 @@ Higher-value than another general sweep (do these instead, each narrow):
 Close the ledger, don't re-review it: the Deferred items above are **decisions,
 not bugs**. Explicitly accept (or fix) them once rather than re-litigating each
 round.
+
+## Next session — dogfooding & error-message hardening (NOT another review)
+
+Reviews are converged (see above). The next session is a different activity:
+**use the tool adversarially and polish how it fails.** Reviews answer "does the
+code do the wrong thing"; dogfooding answers "does the tool handle the world
+badly" — bad inputs, confusing errors, unhelpful exits. A Bactopia user sees
+stderr + exit code, not the source, so that surface is the product.
+
+Method: run each scenario, capture `exit code` + stderr, grade every message on
+**"does it say what's wrong AND what to do?"** Fix the weak ones (wording + exit
+consistency), one regression test per fix. Exit-code contract: 0 ok /
+1 validation·API·download / 2 not-found·empty·bad-taxon / 3 partial.
+
+1. **Headline gate — M2 variable-column TSV vs Bactopia's parser.** R5 made the
+   metadata TSV column set run-dependent (isolate/sex/... appear only when
+   present). Verified it writes correctly, NOT that the `ncbigenomedownload`
+   Bactopia module's downstream TSV reader tolerates a variable schema. If it
+   hard-codes columns/positions, that breaks the drop-in contract. Verify first.
+2. **Adversarial input matrix** (grade the message each time):
+   - Accessions: malformed, lowercase, whitespace, wrong prefix, valid-shape but
+     nonexistent, versioned/unversioned, suppressed, withdrawn.
+   - List files: BOM, CRLF, blank/comment lines, dupes, one bad line among good,
+     empty file, not-a-file, huge file.
+   - Species/taxon: typos, wrong rank, unicode, empty level×section combos,
+     ambiguous names.
+   - Filesystem: read-only outdir, missing parent, odd `--prefix`, existing files
+     (`--force` vs not).
+   - Network/NCBI: offline, DNS fail, 5xx, mid-download drop, 404 FTP dir, md5
+     mismatch.
+   - Flag combos: `--limit 0` on a huge taxon, `--dry-run --json`, conflicting
+     inputs, `--cpus` extremes, `--ignore`.
+3. **Exercise R5's new paths as break-targets:** first-X with `limit > total`,
+   `limit` crossing page boundaries, `--section all` GCA/GCF pairing under
+   `--limit`, empty taxon with early-stop.
+
+Deliverable: a triage list of weak/missing messages → fixes + tests. Then run
+`just test-integration` live and dogfood the actual Bactopia module end-to-end.
 
 ## Packaging note
 

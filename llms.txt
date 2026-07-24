@@ -84,8 +84,7 @@ CLI (accession / accessions file / species)
 | `--section` | refseq | Assembly source to query for --species. |
 | `--assembly-level` | all | Comma-separated assembly levels for --species (complete,chromosome,scaffold,contig or all). |
 | `--formats` | fasta | Comma-separated formats to download (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assembly-report,assembly-stats or all). |
-| `--limit` | 10 | Max assemblies to download for --species (0 = no limit). |
-| `--seed` | 42 | Random seed for reproducible --species subsetting. |
+| `--limit` | 10 | Download the first N assemblies for --species (NCBI relevance order, reference first; 0 = no limit). |
 | `--max-attempts` (`-m`) | 3 | Maximum number of download attempts. |
 | `--sleep` (`-s`) | 10 | Seconds to sleep between download retries. |
 | `--force` (`-F`) | off | Overwrite existing files. |
@@ -93,7 +92,7 @@ CLI (accession / accessions file / species)
 | `--allow-outdated` | off | Download an explicitly requested outdated (superseded) accession version instead of erroring. |
 | `--outdir` (`-o`) | ./ | Directory to write downloads to. |
 | `--prefix` | genome-dl | Prefix for the metadata TSV file. |
-| `--cpus` | 3 | Number of concurrent downloads. |
+| `--cpus` | 3 | Number of concurrent FTP downloads (values above 16 may strain NCBI). |
 | `--json` | off | Emit the run report as compact JSON to stdout for piping into other tools. |
 | `--dry-run` | off | List assemblies without downloading. |
 | `--progress` | off | Show per-file download progress. |

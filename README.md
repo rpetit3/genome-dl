@@ -67,39 +67,38 @@ genome-dl --help
 │ --accessions  TEXT  Path to a file of accessions, one per line.                                  │
 │ --species     TEXT  A species (or any taxon) name to download assemblies for.                    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Filter Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --section         [refseq|genbank|all]  Assembly source to query for --species. [default:        │
-│                                         refseq]                                                  │
-│ --assembly-level  TEXT                  Comma-separated assembly levels for --species            │
-│                                         (complete,chromosome,scaffold,contig or all). [default:  │
-│                                         all]                                                     │
-│ --formats         TEXT                  Comma-separated formats to download                      │
-│                                         (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,ass │
-│                                         embly-report,assembly-stats or all). [default: fasta]    │
-│ --limit           INTEGER               Max assemblies to download for --species (0 = no limit). │
-│                                         [default: 10]                                            │
-│ --seed            INTEGER               Random seed for reproducible --species subsetting.       │
-│                                         [default: 42]                                            │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Filter Options ───────────────────────────────────────────────────────────────────────────────────╮
+│ --section         [refseq|genbank|all]  Assembly source to query for --species. [default: refseq]  │
+│ --assembly-level  TEXT                  Comma-separated assembly levels for --species              │
+│                                         (complete,chromosome,scaffold,contig or all). [default:    │
+│                                         all]                                                       │
+│ --formats         TEXT                  Comma-separated formats to download                        │
+│                                         (fasta,genbank,gff,gtf,protein,cds,rna,feature-table,assem │
+│                                         bly-report,assembly-stats or all). [default: fasta]        │
+│ --limit           INTEGER RANGE [x>=0]  Download the first N assemblies for --species (NCBI        │
+│                                         relevance order, reference first; 0 = no limit). [default: │
+│                                         10]                                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Download Options ───────────────────────────────────────────────────────────────────────────────╮
 │ --max-attempts  -m  INTEGER  Maximum number of download attempts. [default: 3]                   │
 │ --sleep         -s  INTEGER  Seconds to sleep between download retries. [default: 10]            │
 │ --force         -F           Overwrite existing files.                                           │
 │ --ignore        -I           Skip MD5 validation of downloaded files.                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Additional Options ─────────────────────────────────────────────────────────────────────────────╮
-│ --outdir    -o  TEXT     Directory to write downloads to. [default: ./]                          │
-│ --prefix        TEXT     Prefix for the metadata TSV file. [default: genome-dl]                  │
-│ --cpus          INTEGER  Number of concurrent downloads. [default: 3]                            │
-│ --dry-run                List assemblies without downloading.                                    │
-│ --progress               Show per-file download progress.                                        │
-│ --json                   Emit the run report as compact JSON to stdout for piping into other     │
-│                          tools.                                                                  │
-│ --silent                 Only critical errors will be printed.                                   │
-│ --verbose   -v           Print debug related text.                                               │
-│ --version   -V           Show the version and exit.                                              │
-│ --help      -h           Show this message and exit.                                             │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Additional Options ───────────────────────────────────────────────────────────────────────────────╮
+│ --outdir    -o  TEXT                  Directory to write downloads to. [default: ./]               │
+│ --prefix        TEXT                  Prefix for the metadata TSV file. [default: genome-dl]       │
+│ --cpus          INTEGER RANGE [x>=1]  Number of concurrent FTP downloads (values above 16 may      │
+│                                       strain NCBI). [default: 3]                                   │
+│ --dry-run                             List assemblies without downloading.                         │
+│ --progress                            Show per-file download progress.                             │
+│ --json                                Emit the run report as compact JSON to stdout for piping     │
+│                                       into other tools.                                            │
+│ --silent                              Only critical errors will be printed.                        │
+│ --verbose   -v                        Print debug related text.                                    │
+│ --version   -V                        Show the version and exit.                                   │
+│ --help      -h                        Show this message and exit.                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 `genome-dl` requires exactly one of `--accession`, `--accessions`, or `--species` as input.
@@ -123,7 +122,7 @@ ignored. Each accession is resolved and downloaded following the same rules as `
 ### --species
 
 A species (or any taxon) name, verified against NCBI Taxonomy, to download assemblies for. Use
-`--section`, `--assembly-level`, `--limit`, and `--seed` to control which and how many assemblies
+`--section`, `--assembly-level`, and `--limit` to control which and how many assemblies
 are selected.
 
 ### --section
@@ -156,11 +155,12 @@ format. Available formats and their output extensions:
 Not every format is available for every assembly; formats that do not exist for an assembly are
 skipped and reported.
 
-### --limit & --seed
+### --limit
 
-For `--species`, `--limit` caps the number of assemblies downloaded (default `10`; `0` means no
-limit). When more assemblies match than `--limit` allows, a reproducible random subset is taken
-using `--seed` (default `42`).
+For `--species`, `--limit` sets how many assemblies to download (default `10`; `0` means no
+limit). The first N assemblies in NCBI's default relevance order are taken, which ranks the
+reference/representative genome first. For a fully reproducible, explicit set of assemblies, pass
+`--accessions` with a list instead.
 
 ### --ignore
 
@@ -252,11 +252,11 @@ and downloaded.
 ### Download assemblies for a species
 
 ```bash
-genome-dl --species "Escherichia coli" --limit 5 --seed 1 -o outdir
+genome-dl --species "Escherichia coli" --limit 5 -o outdir
 ```
 
-The species name is verified against NCBI Taxonomy, then up to 5 RefSeq assemblies are selected
-(reproducibly, using `--seed 1`) and downloaded.
+The species name is verified against NCBI Taxonomy, then the first 5 RefSeq assemblies (NCBI
+relevance order, reference genome first) are downloaded.
 
 ### Pipe the run report as JSON
 

@@ -1,7 +1,6 @@
 """Tests for the genome-dl CLI."""
 
 import json
-import random
 import threading
 from pathlib import Path
 
@@ -244,7 +243,7 @@ class TestExitCodes:
         assert not list(Path(tmp_path).glob("*-summary.txt"))
         assert not list(Path(tmp_path).glob("*.json"))
 
-    def test_species_limit_seed_is_deterministic(self, mocker, tmp_path):
+    def test_species_limit_fetches_first_x(self, mocker, tmp_path):
         _patch_common(mocker)
         mocker.patch(
             "genome_dl.cli.download.verify_taxon",
@@ -255,7 +254,12 @@ class TestExitCodes:
             },
         )
         pool = [make_assembly(accession=f"GCF_00000000{i}.1") for i in range(1, 6)]
-        mocker.patch("genome_dl.cli.download.list_taxon_assemblies", return_value=pool)
+        # The provider applies the limit and reports the full population count;
+        # the CLI consumes (first_x_assemblies, total_count).
+        mocker.patch(
+            "genome_dl.cli.download.list_taxon_assemblies",
+            return_value=(pool[:2], len(pool)),
+        )
         downloaded = []
 
         def fake_download(*args, **kwargs):
@@ -273,8 +277,6 @@ class TestExitCodes:
                 "Escherichia coli",
                 "--limit",
                 "2",
-                "--seed",
-                "1",
                 "--cpus",
                 "1",
                 "-o",
@@ -282,9 +284,8 @@ class TestExitCodes:
             ],
         )
         assert result.exit_code == 0
-        # --limit picks exactly N, and --seed makes the subset reproducible.
-        expected = {a.accession for a in random.Random(1).sample(pool, 2)}
-        assert set(downloaded) == expected
+        # The first X assemblies flow through to download; nothing beyond X.
+        assert downloaded == [a.accession for a in pool[:2]]
         assert len(downloaded) == 2
 
     def test_duplicate_tokens_deduped(self, mocker, tmp_path):
@@ -539,6 +540,46 @@ class TestOptionBounds:
             genomedl, ["--accession", "GCF_000005845.2", "--cpus", "0"]
         )
         assert result.exit_code == 2
+
+    def test_high_cpus_warns(self, mocker, tmp_path, caplog):
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
+        )
+        with caplog.at_level("WARNING"):
+            result = CliRunner().invoke(
+                genomedl,
+                ["--accession", "GCF_000005845.2", "--cpus", "32", "-o", str(tmp_path)],
+            )
+        assert result.exit_code == 0
+        assert "--cpus 32 exceeds 16" in caplog.text
+
+    def test_cpus_at_threshold_no_warning(self, mocker, tmp_path, caplog):
+        _patch_common(mocker)
+        mocker.patch(
+            "genome_dl.cli.download.resolve_accessions",
+            return_value={"GCF_000005845": {2: make_assembly()}},
+        )
+        mocker.patch(
+            "genome_dl.cli.download.download_assembly",
+            return_value=AssemblyDownload(
+                [tmp_path / "GCF_000005845.2.fna.gz"], [], []
+            ),
+        )
+        with caplog.at_level("WARNING"):
+            result = CliRunner().invoke(
+                genomedl,
+                ["--accession", "GCF_000005845.2", "--cpus", "16", "-o", str(tmp_path)],
+            )
+        assert result.exit_code == 0
+        assert "exceeds" not in caplog.text
 
     def test_max_attempts_zero_rejected(self, mocker):
         _patch_common(mocker)

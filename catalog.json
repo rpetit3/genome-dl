@@ -6,7 +6,7 @@
   "homepage": "https://github.com/rpetit3/genome-dl",
   "license": "MIT",
   "python_requires": ">=3.10,<3.14",
-  "generated_at": "2026-07-24T05:55:49.748565+00:00",
+  "generated_at": "2026-07-24T14:49:32.681988+00:00",
   "modules": {
     "genome_dl.__init__": {
       "path": "genome_dl/__init__.py",
@@ -54,13 +54,8 @@
             },
             {
               "name": "limit",
-              "description": "Max assemblies to download for --species (0 = no limit).",
+              "description": "Download the first N assemblies for --species (NCBI relevance order, reference first; 0 = no limit).",
               "default": "10"
-            },
-            {
-              "name": "seed",
-              "description": "Random seed for reproducible --species subsetting.",
-              "default": "42"
             },
             {
               "name": "max_attempts",
@@ -99,7 +94,7 @@
             },
             {
               "name": "cpus",
-              "description": "Number of concurrent downloads.",
+              "description": "Number of concurrent FTP downloads (values above 16 may strain NCBI).",
               "default": "3"
             },
             {
@@ -127,7 +122,7 @@
             }
           ],
           "returns": null,
-          "lineno": 219
+          "lineno": 212
         },
         "_write_summary": {
           "name": "_write_summary",
@@ -155,7 +150,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 316
+          "lineno": 307
         },
         "_assembly_json": {
           "name": "_assembly_json",
@@ -170,7 +165,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 342
+          "lineno": 333
         },
         "_build_report": {
           "name": "_build_report",
@@ -198,7 +193,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 349
+          "lineno": 340
         },
         "_emit_json": {
           "name": "_emit_json",
@@ -210,7 +205,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 371
+          "lineno": 362
         },
         "_parse_formats": {
           "name": "_parse_formats",
@@ -222,7 +217,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 376
+          "lineno": 367
         },
         "_parse_levels": {
           "name": "_parse_levels",
@@ -234,7 +229,7 @@
             }
           ],
           "returns": "list[str]",
-          "lineno": 391
+          "lineno": 382
         },
         "_resolve_targets": {
           "name": "_resolve_targets",
@@ -257,7 +252,7 @@
             }
           ],
           "returns": null,
-          "lineno": 409
+          "lineno": 400
         },
         "_log_asm_result": {
           "name": "_log_asm_result",
@@ -279,7 +274,7 @@
             }
           ],
           "returns": "None",
-          "lineno": 486
+          "lineno": 477
         },
         "_execute_downloads": {
           "name": "_execute_downloads",
@@ -323,7 +318,7 @@
             }
           ],
           "returns": null,
-          "lineno": 503
+          "lineno": 494
         },
         "_write_run_outputs": {
           "name": "_write_run_outputs",
@@ -352,7 +347,7 @@
             }
           ],
           "returns": null,
-          "lineno": 590
+          "lineno": 581
         },
         "_run_download": {
           "name": "_run_download",
@@ -387,13 +382,8 @@
             },
             {
               "name": "limit",
-              "description": "Max assemblies to download for --species (0 = no limit).",
+              "description": "Download the first N assemblies for --species (NCBI relevance order, reference first; 0 = no limit).",
               "default": "10"
-            },
-            {
-              "name": "seed",
-              "description": "Random seed for reproducible --species subsetting.",
-              "default": "42"
             },
             {
               "name": "max_attempts",
@@ -435,7 +425,7 @@
             },
             {
               "name": "cpus",
-              "description": "Number of concurrent downloads.",
+              "description": "Number of concurrent FTP downloads (values above 16 may strain NCBI).",
               "default": "3"
             },
             {
@@ -451,14 +441,14 @@
             }
           ],
           "returns": null,
-          "lineno": 619
+          "lineno": 618
         },
         "main": {
           "name": "main",
           "description": "",
           "args": [],
           "returns": null,
-          "lineno": 814
+          "lineno": 823
         }
       },
       "classes": {},
@@ -476,6 +466,7 @@
         "DATASETS_RATE_LIMIT": 5,
         "DATASETS_RATE_LIMIT_WITH_KEY": 10,
         "ACCESSION_BATCH_SIZE": 1000,
+        "CPUS_WARN_THRESHOLD": 16,
         "METADATA_SUFFIX": "-metadata.tsv",
         "SUMMARY_SUFFIX": "-summary.txt",
         "JSON_SUFFIX": ".json",
@@ -695,7 +686,7 @@
         },
         "metadata_row": {
           "name": "metadata_row",
-          "description": "Flatten an assembly's report into METADATA_COLUMNS keys for the TSV.",
+          "description": "Flatten an assembly's report into TSV keys.\n\nEmits the fixed METADATA_COLUMNS keys plus one key per non-strain\ninfraspecific identifier present on the record (isolate, cultivar, ...);\nthe writer adds a column for each so nothing is silently dropped.",
           "args": [
             {
               "name": "asm",
@@ -735,10 +726,15 @@
               "name": "identity_encoding",
               "annotation": "bool",
               "default": "False"
+            },
+            {
+              "name": "pool_maxsize",
+              "annotation": "int",
+              "default": "10"
             }
           ],
           "returns": "requests.Session",
-          "lineno": 119
+          "lineno": 133
         },
         "_base_of": {
           "name": "_base_of",
@@ -750,7 +746,7 @@
             }
           ],
           "returns": "str",
-          "lineno": 157
+          "lineno": 172
         },
         "_request_json": {
           "name": "_request_json",
@@ -770,7 +766,7 @@
             }
           ],
           "returns": "dict",
-          "lineno": 162
+          "lineno": 177
         },
         "resolve_accessions": {
           "name": "resolve_accessions",
@@ -786,7 +782,7 @@
             }
           ],
           "returns": "dict[str, dict[int, Assembly]]",
-          "lineno": 201
+          "lineno": 216
         },
         "select_for_input": {
           "name": "select_for_input",
@@ -811,7 +807,7 @@
             }
           ],
           "returns": "tuple[Optional[Assembly], str]",
-          "lineno": 247
+          "lineno": 262
         },
         "verify_taxon": {
           "name": "verify_taxon",
@@ -827,11 +823,11 @@
             }
           ],
           "returns": "dict",
-          "lineno": 287
+          "lineno": 302
         },
         "list_taxon_assemblies": {
           "name": "list_taxon_assemblies",
-          "description": "List all assemblies for a taxon, applying source and level filters.\n\nRaises:\n    EmptyResultError: If the taxon has no assemblies for the filters.\n    ApiError: If the API request fails.",
+          "description": "List assemblies for a taxon, applying source and level filters.\n\nWhen ``limit`` is greater than zero, only the first ``limit`` assemblies\n(in NCBI's default relevance order, which ranks the reference/representative\ngenome first) are fetched -- pagination stops early instead of enumerating\nthe whole taxon. A ``limit`` of zero fetches every assembly.\n\nReturns:\n    ``(assemblies, total_count)`` where ``total_count`` is the taxon's full\n    assembly count reported by NCBI, so callers can report how many exist\n    even when only the first ``limit`` were fetched.\n\nRaises:\n    EmptyResultError: If the taxon has no assemblies for the filters.\n    ApiError: If the API request fails.",
           "args": [
             {
               "name": "session",
@@ -848,10 +844,15 @@
             {
               "name": "levels",
               "annotation": "list[str]"
+            },
+            {
+              "name": "limit",
+              "annotation": "int",
+              "default": "0"
             }
           ],
-          "returns": "list[Assembly]",
-          "lineno": 312
+          "returns": "tuple[list[Assembly], int]",
+          "lineno": 327
         }
       },
       "classes": {
@@ -1194,13 +1195,7 @@
       "name": "--limit",
       "default": 10,
       "type": "click.IntRange(min=0)",
-      "help": "Max assemblies to download for --species (0 = no limit)."
-    },
-    {
-      "name": "--seed",
-      "default": 42,
-      "type": "int",
-      "help": "Random seed for reproducible --species subsetting."
+      "help": "Download the first N assemblies for --species (NCBI relevance order, reference first; 0 = no limit)."
     },
     {
       "name": "--max-attempts",
@@ -1248,7 +1243,7 @@
       "name": "--cpus",
       "default": 3,
       "type": "click.IntRange(min=1)",
-      "help": "Number of concurrent downloads."
+      "help": "Number of concurrent FTP downloads (values above 16 may strain NCBI)."
     },
     {
       "name": "--json",
@@ -1401,6 +1396,7 @@
     "DATASETS_RATE_LIMIT": 5,
     "DATASETS_RATE_LIMIT_WITH_KEY": 10,
     "ACCESSION_BATCH_SIZE": 1000,
+    "CPUS_WARN_THRESHOLD": 16,
     "METADATA_SUFFIX": "-metadata.tsv",
     "SUMMARY_SUFFIX": "-summary.txt",
     "JSON_SUFFIX": ".json",

@@ -11,6 +11,7 @@ from genome_dl.exceptions import EmptyResultError, TaxonError
 from genome_dl.providers.datasets import (
     list_taxon_assemblies,
     make_session,
+    metadata_row,
     resolve_accessions,
     select_for_input,
     verify_taxon,
@@ -95,7 +96,7 @@ def test_suppressed_detected(session):
 
 
 def test_species_listing_filters_by_level(session):
-    asms = list_taxon_assemblies(session, "Escherichia coli", "refseq", ["complete"])
+    asms, _ = list_taxon_assemblies(session, "Escherichia coli", "refseq", ["complete"])
     assert len(asms) > 0
     # The level filter must be honored: every returned assembly is complete.
     assert all(
@@ -114,3 +115,24 @@ def test_species_no_assemblies_for_filter(session):
         list_taxon_assemblies(
             session, "Homo sapiens neanderthalensis", "refseq", ["complete"]
         )
+
+
+def test_species_limit_fetches_first_x(session):
+    # First-X: fetch only the first N (NCBI default order, reference first) and
+    # still report the full population count.
+    asms, total = list_taxon_assemblies(
+        session, "Escherichia coli", "refseq", ["all"], limit=3
+    )
+    assert len(asms) == 3
+    assert total > len(asms)  # population is far larger than the fetched slice
+    assert asms[0].report["assembly_info"].get("refseq_category") == "reference genome"
+
+
+def test_metadata_captures_isolate(session):
+    # GCA_016906955.1 identifies via isolate (no strain); the dynamic column
+    # must surface it instead of silently dropping the identifier.
+    resolved = resolve_accessions(session, ["GCA_016906955"])
+    group = resolved["GCA_016906955"]
+    row = metadata_row(group[max(group)], [])
+    assert row.get("isolate") == "WHEZ1"
+    assert row["strain"] == ""

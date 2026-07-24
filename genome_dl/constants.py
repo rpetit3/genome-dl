@@ -14,6 +14,11 @@ DATASETS_RATE_LIMIT_WITH_KEY = 10
 # chunked into batches of this size so a single oversized request is not sent.
 ACCESSION_BATCH_SIZE = 1000
 
+# Warn above this many concurrent FTP download workers. NCBI's file server has
+# no published per-second limit, but many parallel connections strain it, so a
+# high --cpus is flagged rather than silently allowed.
+CPUS_WARN_THRESHOLD = 16
+
 # Output naming
 METADATA_SUFFIX = "-metadata.tsv"
 SUMMARY_SUFFIX = "-summary.txt"
