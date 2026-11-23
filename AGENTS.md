@@ -75,8 +75,6 @@ genome-dl/
 │   ├── test_utils.py            # Utility function tests
 │   └── test_integration.py      # Real API/FTP integration tests
 ├── .agents/
-│   ├── docs/
-│   │   └── review-context.md    # Prior review rounds, live NCBI facts
 │   └── skills/
 │       └── update-catalog/
 │           ├── SKILL.md             # Skill definition for /update-catalog
@@ -141,7 +139,6 @@ CLI (accession / accessions file / species)
 
 Agent skills live in `.agents/skills/`; read a skill's `SKILL.md` before using
 it. It is also enumerated in the generated `llms.txt` and `catalog.json`.
-Prior review rounds and live NCBI facts live in `.agents/docs/review-context.md`.
 
 - **update-catalog** — regenerate `catalog.json` and `llms.txt` from source via
   the AST-based generator. Run after changing modules, functions, CLI options,
