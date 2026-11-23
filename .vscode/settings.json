@@ -1,0 +1,28 @@
+{
+    "cSpell.words": [
+        "celerybeat",
+        "codz",
+        "contig",
+        "cpus",
+        "fasta",
+        "genbank",
+        "genomedl",
+        "genpept",
+        "htmlcov",
+        "ipython",
+        "llms",
+        "mypy",
+        "NCBI",
+        "nosetests",
+        "Pipfile",
+        "pybuilder",
+        "pycache",
+        "pyenv",
+        "pytest",
+        "refseq",
+        "Scrapy",
+        "sdist",
+        "venv",
+        "webassets"
+    ]
+}

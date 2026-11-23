@@ -16,6 +16,8 @@ jobs:
       - run: poetry install --no-interaction
       - run: poetry run ruff format --check .
       - run: poetry run ruff check .
+      - run: poetry run python .agents/skills/update-catalog/scripts/update_catalog.py
+      - run: git diff --exit-code catalog.json llms.txt
   test:
     runs-on: ubuntu-latest
     strategy:

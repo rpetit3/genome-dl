@@ -7,20 +7,19 @@ dependencies, constants, and exception hierarchy. Outputs:
   - llms.txt: AI-discovery document (markdown)
 
 Usage:
-    python .claude/skills/update-catalog/scripts/update_catalog.py
+    python .agents/skills/update-catalog/scripts/update_catalog.py
 """
 
 import ast
 import json
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 PACKAGE_DIR = PROJECT_ROOT / "genome_dl"
 CATALOG_PATH = PROJECT_ROOT / "catalog.json"
 LLMS_PATH = PROJECT_ROOT / "llms.txt"
-SKILLS_DIR = PROJECT_ROOT / ".claude" / "skills"
+SKILLS_DIR = PROJECT_ROOT / ".agents" / "skills"
 
 
 def parse_pyproject() -> dict:
@@ -83,7 +82,7 @@ def parse_pyproject() -> dict:
 
 
 def parse_skills() -> list[dict]:
-    """Extract name + description from each .claude/skills/*/SKILL.md frontmatter."""
+    """Extract name + description from each .agents/skills/*/SKILL.md frontmatter."""
     skills: list[dict] = []
     if not SKILLS_DIR.exists():
         return skills
@@ -445,7 +444,6 @@ def build_catalog() -> dict:
         "homepage": meta.get("homepage", ""),
         "license": meta.get("license", ""),
         "python_requires": meta.get("python_requires", ""),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
         "modules": modules,
         "cli_options": cli_options,
         "dependencies": meta.get("dependencies", {}),
@@ -618,7 +616,7 @@ def generate_llms_txt(catalog: dict) -> str:
                 "",
                 "## Skills",
                 "",
-                "Agent skills live in `.claude/skills/`. Read the referenced "
+                "Agent skills live in `.agents/skills/`. Read the referenced "
                 "`SKILL.md` before using one.",
                 "",
             ]

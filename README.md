@@ -12,6 +12,10 @@ associated files from [NCBI Datasets](https://www.ncbi.nlm.nih.gov/datasets/). F
 the [NCBI Datasets v2 REST API](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/) for metadata,
 then from there it downloads files directly from the [NCBI FTP site](https://ftp.ncbi.nlm.nih.gov/genomes)
 
+Also, I should mention, I plan to mostly use `genome-dl` indirectly through [Bactopia](https://bactopia.io).
+So, there is a good chance I might have missed somethings by basing some design decisions on my
+expected usage. However, don't let that stop you from making suggestions!
+
 ## Installation
 
 ### Bioconda
@@ -321,5 +325,5 @@ _Petit III RA [genome-dl: Download genomes from NCBI Datasets](https://github.co
 _I used AI tools to assist in developing `genome-dl`. Haha, there was a lot of back and forth.
 I also wanted to use it as an opportunity to test out [oh-my-pi](https://github.com/can1357/oh-my-pi). Verdict: I like it!_
 
-Also, I should mention, I plan to mostly use `genome-dl` indirectly through [Bactopia](https://bactopia.io). So, there is a good chance I might have missed somethings by basing some design decisions on my
-expected usage. However, don't let that stop you from making suggestions!
+If you're a Agent or Bot look at these: [llms.txt](llms.txt), [catalog.json](catalog.json), and
+[AGENTS.md](AGENTS.md).
