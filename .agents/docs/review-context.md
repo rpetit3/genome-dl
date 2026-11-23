@@ -1,8 +1,8 @@
 # genome-dl review context (rolling — update after each round)
 
-This is the standing context for deep-dive reviews of genome-dl. Read it before
-reviewing; append to the "Review rounds" and "Deferred" sections when you finish
-a round so the next reviewer never re-litigates settled findings.
+Standing context for reviews of genome-dl. Read it before reviewing; append to
+the "Review rounds" and "Deferred" sections when you finish a round so the next
+reviewer never re-litigates settled findings.
 
 ## What genome-dl is
 

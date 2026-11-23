@@ -1,11 +1,11 @@
 ---
 name: update-catalog
-description: Regenerate catalog.json and llms.txt from the genome-dl source code using the AST-based catalog generation script.
+description: Regenerate catalog.json and llms.txt from the genome-dl source code using the AST-based catalog generation script. Use after changing modules, functions, CLI options, constants, the exception hierarchy, dependencies, or skills, and before a release.
 ---
 
 # Update Catalog
 
-Regenerates `catalog.json` and `llms.txt` by running `.claude/skills/update-catalog/scripts/update_catalog.py`,
+Regenerates `catalog.json` and `llms.txt` by running `.agents/skills/update-catalog/scripts/update_catalog.py`,
 which uses AST parsing to extract metadata from the genome-dl source code.
 
 ## Steps
@@ -20,7 +20,7 @@ which uses AST parsing to extract metadata from the genome-dl source code.
 
 2. **Run the catalog generation script**:
    ```bash
-   python .claude/skills/update-catalog/scripts/update_catalog.py
+   python .agents/skills/update-catalog/scripts/update_catalog.py
    ```
    This parses all Python source files under `genome_dl/`, extracts module metadata, function
    signatures, CLI options, dependencies, constants, and exception hierarchy, then writes:
@@ -37,8 +37,8 @@ which uses AST parsing to extract metadata from the genome-dl source code.
    git diff --stat catalog.json llms.txt
    ```
 
-5. **Optionally update CLAUDE.md**: If the script output indicates structural changes (new
-   modules, new functions, changed exception hierarchy), review `CLAUDE.md` and update the
+5. **Optionally update AGENTS.md**: If the script output indicates structural changes (new
+   modules, new functions, changed exception hierarchy), review `AGENTS.md` and update the
    relevant sections to match.
 
 ## When to Run

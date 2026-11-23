@@ -12,6 +12,9 @@ associated files from [NCBI Datasets](https://www.ncbi.nlm.nih.gov/datasets/). F
 the [NCBI Datasets v2 REST API](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/) for metadata,
 then from there it downloads files directly from the [NCBI FTP site](https://ftp.ncbi.nlm.nih.gov/genomes)
 
+Agent-facing references: [llms.txt](llms.txt), [catalog.json](catalog.json), and
+[AGENTS.md](AGENTS.md).
+
 ## Installation
 
 ### Bioconda
